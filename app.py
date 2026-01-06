@@ -5,18 +5,16 @@ from datetime import datetime
 import os
 import locale
 
-# --- INTENTO DE CONFIGURACIÓN DE IDIOMA (LOCALE) ---
-# Esto ayuda a que Python maneje fechas en español, aunque el calendario visual
-# depende principalmente del navegador del usuario.
+# --- CONFIGURACIÓN REGIONAL ---
 try:
     locale.setlocale(locale.LC_ALL, 'es_ES.UTF-8')
 except locale.Error:
     try:
         locale.setlocale(locale.LC_ALL, 'es_ES')
     except locale.Error:
-        pass # Si el servidor no tiene el idioma instalado, usa el por defecto
+        pass
 
-# --- CONFIGURACIÓN DE LA PÁGINA ---
+# --- CONFIGURACIÓN PÁGINA ---
 st.set_page_config(
     page_title="Finanzas Proactivas €", 
     layout="wide", 
@@ -24,17 +22,14 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- ARCHIVOS Y CONSTANTES ---
+# --- ESTADO DE SESIÓN (Para la simulación) ---
+if 'simulacion' not in st.session_state:
+    st.session_state.simulacion = None # Aquí guardaremos el gasto hipotético
+
+# --- ARCHIVOS ---
 FILE_NAME = "finanzas.csv"
 CAT_FILE_NAME = "categorias.csv"
 COLUMNS = ["Fecha", "Tipo", "Categoría", "Concepto", "Importe", "Frecuencia", "Impacto_Mensual"]
-
-# Diccionario de respaldo por si el locale falla en la nube
-MESES_ES = {
-    "January": "Enero", "February": "Febrero", "March": "Marzo", "April": "Abril",
-    "May": "Mayo", "June": "Junio", "July": "Julio", "August": "Agosto",
-    "September": "Septiembre", "October": "Octubre", "November": "Noviembre", "December": "Diciembre"
-}
 
 # --- FUNCIONES ---
 def load_data():
@@ -58,137 +53,188 @@ def load_categories():
     if os.path.exists(CAT_FILE_NAME):
         try:
             df_cat = pd.read_csv(CAT_FILE_NAME)
-            if not df_cat.empty and "Categoría" in df_cat.columns:
-                return df_cat['Categoría'].tolist()
-        except Exception:
-            pass
+            if not df_cat.empty: return df_cat['Categoría'].tolist()
+        except: pass
     return default_cats
 
-def save_categories(lista_categorias):
-    lista_limpia = list(dict.fromkeys(lista_categorias)) 
-    df_cat = pd.DataFrame({"Categoría": lista_limpia})
-    df_cat.to_csv(CAT_FILE_NAME, index=False)
+def save_categories(lista):
+    lista = list(dict.fromkeys(lista)) 
+    pd.DataFrame({"Categoría": lista}).to_csv(CAT_FILE_NAME, index=False)
 
 def translate_period(period_str):
-    """Traduce la fecha para el gráfico, usando locale si es posible o diccionario como backup"""
-    date_obj = datetime.strptime(period_str, "%Y-%m")
-    try:
-        # Intenta usar el locale configurado (ej: Enero 2026)
-        return date_obj.strftime("%B %Y").capitalize()
-    except:
-        # Fallback manual si el sistema no soporta locale español
-        mes_en = date_obj.strftime("%B")
-        return f"{MESES_ES.get(mes_en, mes_en)} {date_obj.year}"
+    d = datetime.strptime(period_str, "%Y-%m")
+    try: return d.strftime("%B %Y").capitalize()
+    except: return period_str
 
-# --- INICIO ---
+# --- CARGA DATOS ---
 df = load_data()
-lista_categorias = load_categories()
+lista_cats = load_categories()
 
-# --- SIDEBAR ---
-st.sidebar.header("📥 Nuevo Movimiento")
+# --- SIDEBAR: REGISTRO Y SIMULACIÓN ---
+st.sidebar.header("📝 Gestión de Movimientos")
 
-with st.sidebar.form("form_reg", clear_on_submit=True):
+# INTERRUPTOR DE MODO SIMULACIÓN
+modo_simulacion = st.sidebar.checkbox("🧪 Modo Simulación (¿Puedo permitírmelo?)", 
+                                      help="Actívalo para probar un gasto sin guardarlo en la base de datos.")
+
+style_color = "red" if modo_simulacion else "green"
+st.sidebar.markdown(f":{style_color}[**ESTADO: {'SIMULANDO ESCENARIO' if modo_simulacion else 'REGISTRO REAL'}**]")
+
+with st.sidebar.form("form_reg", clear_on_submit=not modo_simulacion):
     tipo = st.radio("Tipo", ["Ingreso", "Gasto"], index=1, horizontal=True)
-    
-    # El calendario visual heredará el idioma del navegador/móvil
     fecha = st.date_input("Fecha", datetime.now(), format="DD/MM/YYYY")
-    
-    cat = st.selectbox("Categoría", lista_categorias)
-    con = st.text_input("Concepto", placeholder="Ej: Cena, Gasolina...")
-    
+    cat = st.selectbox("Categoría", lista_cats)
+    con = st.text_input("Concepto", placeholder="Ej: Nuevo iPhone, Viaje...")
     imp = st.number_input("Importe (€)", min_value=0.0, step=10.0, format="%.2f")
     fre = st.selectbox("Frecuencia", ["Mensual", "Anual", "Puntual"])
     
-    submit = st.form_submit_button("💾 Guardar Transacción", use_container_width=True)
+    # Texto del botón cambia según el modo
+    btn_text = "🧪 Simular Impacto" if modo_simulacion else "💾 Guardar Definitivamente"
+    submit = st.form_submit_button(btn_text, use_container_width=True)
     
     if submit:
         if imp > 0 and con:
             impacto = imp / 12 if fre == "Anual" else imp
-            new_row = pd.DataFrame([[pd.to_datetime(fecha), tipo, cat, con, imp, fre, impacto]], columns=COLUMNS)
-            df = pd.concat([df, new_row], ignore_index=True)
-            save_all_data(df)
-            st.success("¡Guardado!")
-            st.rerun()
+            
+            if modo_simulacion:
+                # GUARDAMOS EN SESIÓN, NO EN CSV
+                st.session_state.simulacion = {
+                    "Concepto": con, "Importe": imp, "Impacto_Mensual": impacto, "Tipo": tipo
+                }
+                st.success("Simulación calculada. Ve a la pestaña '🤖 Asesor' para ver el resultado.")
+            else:
+                # GUARDADO REAL
+                new_row = pd.DataFrame([[pd.to_datetime(fecha), tipo, cat, con, imp, fre, impacto]], columns=COLUMNS)
+                df = pd.concat([df, new_row], ignore_index=True)
+                save_all_data(df)
+                st.session_state.simulacion = None # Limpiar simulación si guardamos algo real
+                st.success("¡Guardado!")
+                st.rerun()
         else:
-            st.error("Falta importe o concepto.")
+            st.error("Faltan datos.")
 
 # --- DASHBOARD ---
-st.title("🚀 Finanzas (€)")
+st.title("🚀 Finanzas Personales (€)")
 
 if df.empty:
-    st.info("Abre el menú lateral para añadir tu primer movimiento.")
+    st.info("Añade movimientos en el menú lateral.")
 else:
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Resumen", "🔍 Historial", "📝 Editar", "⚙️ Config"])
+    # CÁLCULOS GLOBALES (REALES)
+    m, y = datetime.now().month, datetime.now().year
+    df_mes = df[(df['Fecha'].dt.month == m) & (df['Fecha'].dt.year == y)]
+    
+    ingresos_reales = df_mes[df_mes['Tipo'] == "Ingreso"]['Importe'].sum()
+    gastos_reales = df_mes[df_mes['Tipo'] == "Gasto"]['Importe'].sum()
+    
+    # Prorrateo Mensual Promedio (Based on all history)
+    n_meses = max(len(df['Fecha'].dt.to_period('M').unique()), 1)
+    gasto_pro_real = df[df['Tipo'] == "Gasto"]['Impacto_Mensual'].sum() / n_meses
 
-    with tab1:
-        m, y = datetime.now().month, datetime.now().year
-        df_mes = df[(df['Fecha'].dt.month == m) & (df['Fecha'].dt.year == y)]
-        i_mes = df_mes[df_mes['Tipo'] == "Ingreso"]['Importe'].sum()
-        g_mes = df_mes[df_mes['Tipo'] == "Gasto"]['Importe'].sum()
+    # PESTAÑAS
+    tab_asesor, tab_resumen, tab_historial, tab_edit, tab_conf = st.tabs(
+        ["🤖 Asesor & Simulación", "📊 Resumen", "🔍 Historial", "📝 Editar", "⚙️ Config"]
+    )
+
+    # --- TAB 1: EL ASESOR (RECUPERADO Y POTENCIADO) ---
+    with tab_asesor:
+        st.subheader("🧠 Análisis de Salud Financiera")
         
+        col_real, col_sim = st.columns(2)
+        
+        # --- COLUMNA 1: SITUACIÓN REAL ---
+        with col_real:
+            st.markdown("### Situación Actual")
+            ahorro_real = ingresos_reales - gasto_pro_real
+            capacidad_ahorro = (ahorro_real / ingresos_reales) if ingresos_reales > 0 else 0
+            
+            st.metric("Ingresos (Mes)", f"{ingresos_reales:,.2f} €")
+            st.metric("Gasto Promedio Real", f"{gasto_pro_real:,.2f} €")
+            st.metric("Ahorro Potencial", f"{ahorro_real:,.2f} €", 
+                      delta=f"{capacidad_ahorro:.1%}", delta_color="normal")
+            
+            if capacidad_ahorro < 0.1:
+                st.warning("⚠️ Tu capacidad de ahorro actual es baja (<10%).")
+            else:
+                st.success("✅ Tu salud financiera actual es buena.")
+
+        # --- COLUMNA 2: SIMULACIÓN ---
+        with col_sim:
+            st.markdown("### Escenario Simulado")
+            
+            sim = st.session_state.simulacion
+            if sim:
+                st.info(f"Simulando: **{sim['Concepto']}** de **{sim['Importe']:,.2f} €**")
+                
+                # Calculamos el NUEVO gasto prorrateado hipotético
+                # Asumimos que este gasto se suma al promedio mensual existente
+                nuevo_gasto_pro = gasto_pro_real + sim['Impacto_Mensual'] if sim['Tipo'] == "Gasto" else gasto_pro_real
+                nuevo_ahorro = ingresos_reales - nuevo_gasto_pro
+                nueva_capacidad = (nuevo_ahorro / ingresos_reales) if ingresos_reales > 0 else 0
+                
+                # Métricas Comparativas
+                st.metric("Nuevo Gasto Promedio", f"{nuevo_gasto_pro:,.2f} €", 
+                          delta=f"-{sim['Impacto_Mensual']:,.2f} €", delta_color="inverse")
+                
+                st.metric("Nuevo Ahorro", f"{nuevo_ahorro:,.2f} €",
+                          delta=f"{(nueva_capacidad - capacidad_ahorro):.1%}", delta_color="normal")
+
+                st.markdown("---")
+                # VEREDICTO DE LA IA
+                if nueva_capacidad < 0:
+                    st.error("⛔ **NO RECOMENDADO:** Entrarías en déficit mensual.")
+                elif nueva_capacidad < 0.10:
+                    st.warning("⚠️ **PRECAUCIÓN:** Tu ahorro bajaría a niveles peligrosos (<10%).")
+                elif (capacidad_ahorro - nueva_capacidad) > 0.20:
+                    st.warning("📉 **IMPACTO ALTO:** Es un gasto asumible, pero reduce drásticamente tu ahorro.")
+                else:
+                    st.success("🟢 **ADELANTE:** Puedes permitírtelo manteniendo una economía sana.")
+                    
+                if st.button("🗑️ Borrar Simulación"):
+                    st.session_state.simulacion = None
+                    st.rerun()
+            else:
+                st.markdown("""
+                *No hay simulación activa.*
+                
+                1. Ve a la barra lateral.
+                2. Activa **"Modo Simulación"**.
+                3. Introduce un gasto (ej. Coche nuevo, Vacaciones).
+                4. Pulsa "Simular" para ver aquí el veredicto.
+                """)
+
+    # --- TAB 2: RESUMEN (GRÁFICOS) ---
+    with tab_resumen:
         c1, c2 = st.columns(2)
-        c1.metric("Ingresos Mes", f"{i_mes:,.2f} €")
-        c2.metric("Gastos Mes", f"{g_mes:,.2f} €")
-        st.metric("Balance", f"{(i_mes - g_mes):,.2f} €")
+        c1.metric("Ingresos Totales (Mes)", f"{ingresos_reales:,.2f} €")
+        c2.metric("Salidas de Caja (Mes)", f"{gastos_reales:,.2f} €")
         
-        # Gráfico
-        st.subheader("Evolución Mensual")
+        st.subheader("Evolución Real")
         df_ev = df.groupby([df['Fecha'].dt.to_period('M'), 'Tipo'])['Importe'].sum().reset_index()
-        df_ev['Fecha_Ref'] = df_ev['Fecha'].astype(str)
-        # Aplicamos la traducción (locale o diccionario)
-        df_ev['Mes_Castellano'] = df_ev['Fecha_Ref'].apply(translate_period)
+        df_ev['Mes'] = df_ev['Fecha'].astype(str).apply(translate_period)
         df_ev = df_ev.sort_values("Fecha")
-
-        fig = px.bar(df_ev, x='Mes_Castellano', y='Importe', color='Tipo', 
-                     barmode='group',
-                     labels={'Importe': '€', 'Mes_Castellano': ''},
-                     color_discrete_map={'Ingreso': '#00CC96', 'Gasto': '#EF553B'})
         
+        fig = px.bar(df_ev, x='Mes', y='Importe', color='Tipo', barmode='group',
+                     color_discrete_map={'Ingreso': '#00CC96', 'Gasto': '#EF553B'})
         fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
         st.plotly_chart(fig, use_container_width=True)
 
-    with tab2:
-        df_h = df.sort_values(by="Fecha", ascending=False).copy()
-        df_h['Fecha'] = df_h['Fecha'].dt.strftime('%d/%m/%Y')
-        st.dataframe(df_h, use_container_width=True)
+    # --- RESTO DE TABS (HISTORIAL, EDITAR, CONFIG) ---
+    with tab_historial:
+        st.dataframe(df.sort_values("Fecha", ascending=False), use_container_width=True)
 
-    with tab3:
-        st.write("Edita directamente en la tabla:")
-        edited_df = st.data_editor(
-            df,
-            column_config={
-                "Fecha": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
-                "Tipo": st.column_config.SelectboxColumn("Tipo", options=["Ingreso", "Gasto"]),
-                "Categoría": st.column_config.SelectboxColumn("Categoría", options=lista_categorias),
-                "Frecuencia": st.column_config.SelectboxColumn("Frecuencia", options=["Mensual", "Anual", "Puntual"]),
-                "Importe": st.column_config.NumberColumn("Importe (€)", format="%.2f €"),
-                "Impacto_Mensual": st.column_config.NumberColumn("Impacto", disabled=True)
-            },
-            num_rows="dynamic",
-            use_container_width=True
-        )
-
-        if st.button("💾 Actualizar Todo", use_container_width=True):
-            edited_df['Impacto_Mensual'] = edited_df.apply(
-                lambda x: x['Importe'] / 12 if x['Frecuencia'] == "Anual" else x['Importe'], axis=1
-            )
+    with tab_edit:
+        st.write("Modifica los registros guardados:")
+        edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True, key="main_editor")
+        if st.button("💾 Guardar Cambios Tabla", use_container_width=True):
+            edited_df['Impacto_Mensual'] = edited_df.apply(lambda x: x['Importe']/12 if x['Frecuencia']=="Anual" else x['Importe'], axis=1)
             save_all_data(edited_df)
             st.success("Actualizado")
             st.rerun()
 
-    with tab4:
-        st.write("Gestión de Categorías:")
-        df_cat_editor = pd.DataFrame({"Categoría": lista_categorias})
-        
-        edited_cats_df = st.data_editor(
-            df_cat_editor,
-            num_rows="dynamic",
-            use_container_width=True,
-            column_config={"Categoría": st.column_config.TextColumn("Nombre", required=True)}
-        )
-        
-        if st.button("💾 Guardar Categorías", use_container_width=True):
-            new_cats_list = [c for c in edited_cats_df["Categoría"].tolist() if c and str(c).strip() != ""]
-            save_categories(new_cats_list)
-            st.success("Guardado")
+    with tab_conf:
+        st.write("Tus Categorías:")
+        new_cats = st.data_editor(pd.DataFrame({"Categoría": lista_cats}), num_rows="dynamic", use_container_width=True)
+        if st.button("💾 Actualizar Categorías", use_container_width=True):
+            save_categories([c for c in new_cats["Categoría"].tolist() if c])
+            st.success("Categorías guardadas")
             st.rerun()
