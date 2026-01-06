@@ -3,8 +3,20 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 import os
+import locale
 
-# --- CONFIGURACIÓN DE LA PÁGINA (Responsive) ---
+# --- INTENTO DE CONFIGURACIÓN DE IDIOMA (LOCALE) ---
+# Esto ayuda a que Python maneje fechas en español, aunque el calendario visual
+# depende principalmente del navegador del usuario.
+try:
+    locale.setlocale(locale.LC_ALL, 'es_ES.UTF-8')
+except locale.Error:
+    try:
+        locale.setlocale(locale.LC_ALL, 'es_ES')
+    except locale.Error:
+        pass # Si el servidor no tiene el idioma instalado, usa el por defecto
+
+# --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
     page_title="Finanzas Proactivas €", 
     layout="wide", 
@@ -17,14 +29,14 @@ FILE_NAME = "finanzas.csv"
 CAT_FILE_NAME = "categorias.csv"
 COLUMNS = ["Fecha", "Tipo", "Categoría", "Concepto", "Importe", "Frecuencia", "Impacto_Mensual"]
 
-# Diccionario para traducir meses a español
+# Diccionario de respaldo por si el locale falla en la nube
 MESES_ES = {
     "January": "Enero", "February": "Febrero", "March": "Marzo", "April": "Abril",
     "May": "Mayo", "June": "Junio", "July": "Julio", "August": "Agosto",
     "September": "Septiembre", "October": "Octubre", "November": "Noviembre", "December": "Diciembre"
 }
 
-# --- FUNCIONES BACKEND ---
+# --- FUNCIONES ---
 def load_data():
     if os.path.exists(FILE_NAME):
         try:
@@ -58,40 +70,40 @@ def save_categories(lista_categorias):
     df_cat.to_csv(CAT_FILE_NAME, index=False)
 
 def translate_period(period_str):
+    """Traduce la fecha para el gráfico, usando locale si es posible o diccionario como backup"""
     date_obj = datetime.strptime(period_str, "%Y-%m")
-    mes_en = date_obj.strftime("%B")
-    return f"{MESES_ES.get(mes_en, mes_en)} {date_obj.year}"
+    try:
+        # Intenta usar el locale configurado (ej: Enero 2026)
+        return date_obj.strftime("%B %Y").capitalize()
+    except:
+        # Fallback manual si el sistema no soporta locale español
+        mes_en = date_obj.strftime("%B")
+        return f"{MESES_ES.get(mes_en, mes_en)} {date_obj.year}"
 
-# --- CARGA INICIAL ---
+# --- INICIO ---
 df = load_data()
 lista_categorias = load_categories()
 
-# --- SIDEBAR: REGISTRO MÓVIL FRIENDLY ---
+# --- SIDEBAR ---
 st.sidebar.header("📥 Nuevo Movimiento")
 
 with st.sidebar.form("form_reg", clear_on_submit=True):
-    # Selector de tipo grande y fácil de tocar
     tipo = st.radio("Tipo", ["Ingreso", "Gasto"], index=1, horizontal=True)
     
-    # --- MEJORA: CALENDARIO NATIVO ---
-    # format="DD/MM/YYYY" muestra el formato europeo visualmente
-    # En móvil abrirá el picker nativo de Android/iOS
+    # El calendario visual heredará el idioma del navegador/móvil
     fecha = st.date_input("Fecha", datetime.now(), format="DD/MM/YYYY")
     
     cat = st.selectbox("Categoría", lista_categorias)
     con = st.text_input("Concepto", placeholder="Ej: Cena, Gasolina...")
     
-    # number_input optimizado
     imp = st.number_input("Importe (€)", min_value=0.0, step=10.0, format="%.2f")
     fre = st.selectbox("Frecuencia", ["Mensual", "Anual", "Puntual"])
     
-    # Botón de ancho completo para facilitar el toque en móvil
     submit = st.form_submit_button("💾 Guardar Transacción", use_container_width=True)
     
     if submit:
         if imp > 0 and con:
             impacto = imp / 12 if fre == "Anual" else imp
-            # Convertimos la fecha del selector directamente a datetime
             new_row = pd.DataFrame([[pd.to_datetime(fecha), tipo, cat, con, imp, fre, impacto]], columns=COLUMNS)
             df = pd.concat([df, new_row], ignore_index=True)
             save_all_data(df)
@@ -100,32 +112,30 @@ with st.sidebar.form("form_reg", clear_on_submit=True):
         else:
             st.error("Falta importe o concepto.")
 
-# --- PANEL PRINCIPAL ---
+# --- DASHBOARD ---
 st.title("🚀 Finanzas (€)")
 
 if df.empty:
-    st.info("👋 ¡Hola! Abre el menú lateral (arriba a la izquierda) para añadir tu primer gasto.")
+    st.info("Abre el menú lateral para añadir tu primer movimiento.")
 else:
     tab1, tab2, tab3, tab4 = st.tabs(["📊 Resumen", "🔍 Historial", "📝 Editar", "⚙️ Config"])
 
     with tab1:
-        # KPIs
         m, y = datetime.now().month, datetime.now().year
         df_mes = df[(df['Fecha'].dt.month == m) & (df['Fecha'].dt.year == y)]
-        
         i_mes = df_mes[df_mes['Tipo'] == "Ingreso"]['Importe'].sum()
         g_mes = df_mes[df_mes['Tipo'] == "Gasto"]['Importe'].sum()
         
-        # En móvil las columnas se apilan automáticamente si no caben
         c1, c2 = st.columns(2)
         c1.metric("Ingresos Mes", f"{i_mes:,.2f} €")
         c2.metric("Gastos Mes", f"{g_mes:,.2f} €")
-        st.metric("Balance del Mes", f"{(i_mes - g_mes):,.2f} €", delta_color="normal")
+        st.metric("Balance", f"{(i_mes - g_mes):,.2f} €")
         
-        # Gráfico Responsive
+        # Gráfico
         st.subheader("Evolución Mensual")
         df_ev = df.groupby([df['Fecha'].dt.to_period('M'), 'Tipo'])['Importe'].sum().reset_index()
         df_ev['Fecha_Ref'] = df_ev['Fecha'].astype(str)
+        # Aplicamos la traducción (locale o diccionario)
         df_ev['Mes_Castellano'] = df_ev['Fecha_Ref'].apply(translate_period)
         df_ev = df_ev.sort_values("Fecha")
 
@@ -134,7 +144,6 @@ else:
                      labels={'Importe': '€', 'Mes_Castellano': ''},
                      color_discrete_map={'Ingreso': '#00CC96', 'Gasto': '#EF553B'})
         
-        # Configuración clave para móvil: leyenda arriba y márgenes reducidos
         fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
         st.plotly_chart(fig, use_container_width=True)
 
@@ -168,7 +177,7 @@ else:
             st.rerun()
 
     with tab4:
-        st.write("Añade o quita categorías:")
+        st.write("Gestión de Categorías:")
         df_cat_editor = pd.DataFrame({"Categoría": lista_categorias})
         
         edited_cats_df = st.data_editor(
@@ -181,5 +190,5 @@ else:
         if st.button("💾 Guardar Categorías", use_container_width=True):
             new_cats_list = [c for c in edited_cats_df["Categoría"].tolist() if c and str(c).strip() != ""]
             save_categories(new_cats_list)
-            st.success("Categorías actualizadas")
+            st.success("Guardado")
             st.rerun()
