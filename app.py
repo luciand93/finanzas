@@ -201,8 +201,12 @@ with st.sidebar:
     if 'template_tipo' not in st.session_state:
         st.session_state.template_tipo = None
     
-    # Plantillas rápidas (FUERA del formulario)
-    st.markdown("**⚡ Plantillas Rápidas:**")
+    # Título del formulario
+    st.markdown("### ➕ Nuevo Movimiento")
+    st.markdown("")  # Espacio
+    
+    # Plantillas rápidas
+    st.markdown("**⚡ Plantillas:**")
     col_template1, col_template2 = st.columns(2)
     with col_template1:
         if st.button("🏠 Vivienda", use_container_width=True, key="tpl_vivienda"):
@@ -215,20 +219,24 @@ with st.sidebar:
             st.session_state.template_tipo = "Gasto"
             st.rerun()
     
+    st.markdown("---")  # Separador visual
+    
     # FORMULARIO MEJORADO
-    with st.form("form_reg", clear_on_submit=True):
-        st.subheader("➕ Nuevo Movimiento")
-        
-        # Aplicar plantilla si existe
+    with st.form("form_reg", clear_on_submit=True, border=False):
+        # Aplicar plantilla si existe para tipo
         tipo_index = 0 if st.session_state.template_tipo == "Ingreso" else 1
         if st.session_state.template_tipo:
             st.session_state.template_tipo = None  # Limpiar después de usar
         
-        tipo = st.radio("Tipo", ["Ingreso", "Gasto"], index=tipo_index, horizontal=True)
+        tipo = st.radio(
+            "**Tipo de movimiento**", 
+            ["Ingreso", "Gasto"], 
+            index=tipo_index, 
+            horizontal=True,
+            key="tipo_radio"
+        )
         
-        es_conjunto = st.checkbox("👥 Gasto Conjunto (Dividido / 2)")
-        
-        fecha = st.date_input("Fecha", datetime.now(), format="DD/MM/YYYY")
+        st.markdown("")  # Espacio
         
         # Aplicar categoría de plantilla si existe
         cat_index = 0
@@ -236,57 +244,86 @@ with st.sidebar:
             cat_index = lista_cats.index(st.session_state.template_cat)
             st.session_state.template_cat = None  # Limpiar después de usar
         
-        cat = st.selectbox("Categoría", lista_cats, index=cat_index, key="cat_select")
+        fecha = st.date_input(
+            "**Fecha**", 
+            datetime.now(), 
+            format="DD/MM/YYYY",
+            key="fecha_input"
+        )
         
-        # Autocompletado de conceptos
+        cat = st.selectbox(
+            "**Categoría**", 
+            lista_cats, 
+            index=cat_index, 
+            key="cat_select"
+        )
+        
+        # Autocompletado de conceptos mejorado
         conceptos_sugeridos = get_unique_concepts(df, cat)
         
-        # Opción 1: Seleccionar de sugerencias o escribir nuevo
+        # Campo de concepto más simple y claro
         if conceptos_sugeridos and len(conceptos_sugeridos) > 0:
-            opciones_concepto = ["(Escribe nuevo concepto)"] + conceptos_sugeridos[:10]  # Máximo 10 sugerencias
+            # Usar un combo: selectbox con opción de escribir nuevo
+            opciones_concepto = ["✏️ Escribir nuevo..."] + conceptos_sugeridos[:8]  # Máximo 8 sugerencias
             concepto_seleccionado = st.selectbox(
-                "Concepto",
+                "**Concepto**",
                 options=opciones_concepto,
                 key="concepto_select",
-                help="Selecciona un concepto usado antes o escribe uno nuevo"
+                help=f"Conceptos usados antes en '{cat}' o escribe uno nuevo"
             )
             
-            if concepto_seleccionado == "(Escribe nuevo concepto)":
+            # Si selecciona "Escribir nuevo", mostrar campo de texto
+            if concepto_seleccionado == "✏️ Escribir nuevo...":
                 concepto_input = st.text_input(
-                    "Nuevo concepto",
-                    help="Escribe un nuevo concepto",
+                    "",
+                    placeholder="Escribe el nuevo concepto...",
+                    help="Introduce un concepto nuevo",
                     key="concepto_input",
-                    value=""
+                    label_visibility="collapsed"
                 )
             else:
                 concepto_input = concepto_seleccionado
+                # Mostrar el concepto seleccionado de forma clara
+                st.caption(f"✓ Concepto seleccionado: **{concepto_input}**")
         else:
             # Si no hay sugerencias, solo campo de texto
             concepto_input = st.text_input(
-                "Concepto",
-                help="Escribe un nuevo concepto",
-                key="concepto_input",
-                value=""
+                "**Concepto**",
+                placeholder="Ej: Alquiler, Supermercado, etc.",
+                help="Escribe el concepto del movimiento",
+                key="concepto_input"
             )
         
+        st.markdown("")  # Espacio
+        
         imp_input = st.number_input(
-            "Importe Total (€)", 
+            "**Importe Total (€)**", 
             min_value=0.0, 
             step=10.0, 
             format="%.2f",
-            help="Introduce el importe total"
+            help="Importe total del movimiento",
+            key="importe_input"
         )
         
         fre = st.selectbox(
-            "Frecuencia", 
+            "**Frecuencia**", 
             ["Mensual", "Anual", "Puntual"],
-            help="¿Con qué frecuencia se repite este movimiento?"
+            help="¿Con qué frecuencia se repite este movimiento?",
+            key="frecuencia_select"
+        )
+        
+        es_conjunto = st.checkbox(
+            "👥 **Gasto Conjunto** (se divide entre 2)", 
+            help="Marca esto si el gasto se comparte (ej: alquiler en pareja)",
+            key="conjunto_check"
         )
         
         # Cálculo inteligente del importe
         imp_real = imp_input / 2 if es_conjunto and tipo == "Gasto" else imp_input
         if es_conjunto and tipo == "Gasto" and imp_input > 0:
-            st.info(f"ℹ️ Se registrarán **{imp_real:.2f} €** (mitad del total)")
+            st.info(f"💡 Se registrarán **{imp_real:.2f} €** (mitad del total: {imp_input:.2f} €)")
+        
+        st.markdown("")  # Espacio antes del botón
         
         # Validación mejorada
         btn_text = "➕ Añadir a Simulación" if modo_simulacion else "💾 Guardar Movimiento"
@@ -296,8 +333,12 @@ with st.sidebar:
         if submitted:
             # Validaciones avanzadas
             errores = []
-            if not concepto_input or len(concepto_input.strip()) == 0:
-                errores.append("El concepto es obligatorio")
+            
+            # Validar concepto: debe estar presente y no ser vacío ni la opción de escribir nuevo
+            concepto_valido = concepto_input and len(concepto_input.strip()) > 0
+            if not concepto_valido or concepto_input.strip() in ["✏️ Escribir nuevo...", "(Escribe nuevo concepto)"]:
+                errores.append("El concepto es obligatorio. Por favor, selecciona uno o escribe uno nuevo.")
+            
             if imp_input <= 0:
                 errores.append("El importe debe ser mayor a 0")
             
