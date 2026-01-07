@@ -240,31 +240,34 @@ with st.sidebar:
         
         # Autocompletado de conceptos
         conceptos_sugeridos = get_unique_concepts(df, cat)
-        concepto_input = st.text_input(
-            "Concepto",
-            help="Escribe un nuevo concepto o busca en las sugerencias",
-            key="concepto_input",
-            value=""
-        )
         
-        # Mostrar sugerencias en un expander mejorado
+        # Opción 1: Seleccionar de sugerencias o escribir nuevo
         if conceptos_sugeridos and len(conceptos_sugeridos) > 0:
-            with st.expander("💡 Conceptos sugeridos para esta categoría", expanded=False):
-                # Filtrar conceptos basado en lo que el usuario escribe
-                if concepto_input:
-                    matches = [c for c in conceptos_sugeridos if concepto_input.lower() in c.lower()]
-                    if matches:
-                        st.caption(f"Se encontraron {len(matches)} coincidencias:")
-                        for concepto in matches[:5]:  # Mostrar máximo 5 coincidencias
-                            if st.button(f"📌 {concepto}", key=f"sel_{concepto}", use_container_width=True):
-                                st.session_state.concepto_input = concepto
-                                st.rerun()
-                else:
-                    st.caption(f"Conceptos usados anteriormente en '{cat}' ({len(conceptos_sugeridos)}):")
-                    for concepto in conceptos_sugeridos[:8]:  # Mostrar máximo 8
-                        if st.button(f"📌 {concepto}", key=f"sel_{concepto}", use_container_width=True):
-                            st.session_state.concepto_input = concepto
-                            st.rerun()
+            opciones_concepto = ["(Escribe nuevo concepto)"] + conceptos_sugeridos[:10]  # Máximo 10 sugerencias
+            concepto_seleccionado = st.selectbox(
+                "Concepto",
+                options=opciones_concepto,
+                key="concepto_select",
+                help="Selecciona un concepto usado antes o escribe uno nuevo"
+            )
+            
+            if concepto_seleccionado == "(Escribe nuevo concepto)":
+                concepto_input = st.text_input(
+                    "Nuevo concepto",
+                    help="Escribe un nuevo concepto",
+                    key="concepto_input",
+                    value=""
+                )
+            else:
+                concepto_input = concepto_seleccionado
+        else:
+            # Si no hay sugerencias, solo campo de texto
+            concepto_input = st.text_input(
+                "Concepto",
+                help="Escribe un nuevo concepto",
+                key="concepto_input",
+                value=""
+            )
         
         imp_input = st.number_input(
             "Importe Total (€)", 
