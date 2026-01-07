@@ -508,34 +508,58 @@ else:
                 df_ev['Mes'] = df_ev['Fecha'].dt.to_timestamp().apply(formatear_periodo_es)
                 df_ev = df_ev.sort_values("Fecha")
                 
+                # Crear DataFrame pivoteado para alinear los datos por mes
+                df_pivot = df_ev.pivot_table(
+                    index='Fecha', 
+                    columns='Tipo', 
+                    values='Importe', 
+                    aggfunc='sum', 
+                    fill_value=0
+                ).reset_index()
+                df_pivot['Mes'] = df_pivot['Fecha'].apply(formatear_periodo_es)
+                
+                # Calcular ahorro correctamente
+                if 'Ingreso' in df_pivot.columns and 'Gasto' in df_pivot.columns:
+                    df_pivot['Ahorro'] = df_pivot['Ingreso'] - df_pivot['Gasto']
+                elif 'Ingreso' in df_pivot.columns:
+                    df_pivot['Ahorro'] = df_pivot['Ingreso']
+                elif 'Gasto' in df_pivot.columns:
+                    df_pivot['Ahorro'] = -df_pivot['Gasto']
+                else:
+                    df_pivot['Ahorro'] = 0
+                
                 fig = make_subplots(specs=[[{"secondary_y": True}]])
+                
+                if 'Ingreso' in df_pivot.columns:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=df_pivot['Mes'],
+                            y=df_pivot['Ingreso'],
+                            name='Ingresos',
+                            mode='lines+markers',
+                            line=dict(color='#00CC96', width=3),
+                            marker=dict(size=8)
+                        ),
+                        secondary_y=False
+                    )
+                
+                if 'Gasto' in df_pivot.columns:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=df_pivot['Mes'],
+                            y=df_pivot['Gasto'],
+                            name='Gastos',
+                            mode='lines+markers',
+                            line=dict(color='#EF553B', width=3),
+                            marker=dict(size=8)
+                        ),
+                        secondary_y=False
+                    )
+                
                 fig.add_trace(
                     go.Scatter(
-                        x=df_ev[df_ev['Tipo']=='Ingreso']['Mes'],
-                        y=df_ev[df_ev['Tipo']=='Ingreso']['Importe'],
-                        name='Ingresos',
-                        mode='lines+markers',
-                        line=dict(color='#00CC96', width=3),
-                        marker=dict(size=8)
-                    ),
-                    secondary_y=False
-                )
-                fig.add_trace(
-                    go.Scatter(
-                        x=df_ev[df_ev['Tipo']=='Gasto']['Mes'],
-                        y=df_ev[df_ev['Tipo']=='Gasto']['Importe'],
-                        name='Gastos',
-                        mode='lines+markers',
-                        line=dict(color='#EF553B', width=3),
-                        marker=dict(size=8)
-                    ),
-                    secondary_y=False
-                )
-                fig.add_trace(
-                    go.Scatter(
-                        x=df_ev[df_ev['Tipo']=='Ingreso']['Mes'],
-                        y=(df_ev[df_ev['Tipo']=='Ingreso']['Importe'] - 
-                           df_ev[df_ev['Tipo']=='Gasto']['Importe'].values),
+                        x=df_pivot['Mes'],
+                        y=df_pivot['Ahorro'],
                         name='Ahorro',
                         mode='lines+markers',
                         line=dict(color='#FFA726', width=2, dash='dash'),
