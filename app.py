@@ -6,6 +6,16 @@ from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 import os
 from io import BytesIO
+import json
+
+# Intentar importar gspread para Google Sheets
+try:
+    import gspread
+    from google.oauth2.service_account import Credentials
+    GSPREAD_AVAILABLE = True
+except ImportError:
+    GSPREAD_AVAILABLE = False
+    st.warning("⚠️ Google Sheets no disponible. Instala: pip install gspread google-auth")
 
 # --- CONFIGURACIÓN PÁGINA ---
 st.set_page_config(
@@ -86,6 +96,16 @@ FILE_NAME = "finanzas.csv"
 CAT_FILE_NAME = "categorias.csv"
 REC_FILE_NAME = "recurrentes.csv"
 
+# Configuración de Google Sheets (usar variables de entorno en Streamlit Cloud)
+GOOGLE_SHEETS_ENABLED = os.getenv('GOOGLE_SHEETS_ENABLED', 'false').lower() == 'true'
+GOOGLE_SHEET_ID = os.getenv('GOOGLE_SHEET_ID', '')
+GOOGLE_CREDENTIALS_JSON = os.getenv('GOOGLE_CREDENTIALS_JSON', '')
+
+# Nombres de las hojas en Google Sheets
+SHEET_FINANZAS = "Finanzas"
+SHEET_CATEGORIAS = "Categorias"
+SHEET_RECURRENTES = "Recurrentes"
+
 MESES_ES_DICT = {
     1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
     7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
@@ -94,9 +114,79 @@ MESES_ES_DICT = {
 COLUMNS = ["Fecha", "Tipo", "Categoría", "Concepto", "Importe", "Frecuencia", "Impacto_Mensual", "Es_Conjunto"]
 COLUMNS_REC = ["Tipo", "Categoría", "Concepto", "Importe", "Frecuencia", "Es_Conjunto"]
 
+# --- FUNCIONES DE GOOGLE SHEETS ---
+@st.cache_resource
+def get_google_sheet():
+    """Inicializa y retorna la conexión a Google Sheets"""
+    if not GSPREAD_AVAILABLE or not GOOGLE_SHEETS_ENABLED:
+        return None
+    
+    try:
+        if GOOGLE_CREDENTIALS_JSON and GOOGLE_SHEET_ID:
+            # Parsear credenciales desde JSON string
+            creds_dict = json.loads(GOOGLE_CREDENTIALS_JSON)
+            scopes = [
+                'https://www.googleapis.com/auth/spreadsheets',
+                'https://www.googleapis.com/auth/drive'
+            ]
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            client = gspread.authorize(creds)
+            return client.open_by_key(GOOGLE_SHEET_ID)
+        elif os.path.exists('credentials.json') and GOOGLE_SHEET_ID:
+            # Fallback: usar archivo de credenciales local (útil para desarrollo)
+            scopes = [
+                'https://www.googleapis.com/auth/spreadsheets',
+                'https://www.googleapis.com/auth/drive'
+            ]
+            creds = Credentials.from_service_account_file('credentials.json', scopes=scopes)
+            client = gspread.authorize(creds)
+            return client.open_by_key(GOOGLE_SHEET_ID)
+    except Exception as e:
+        st.error(f"Error conectando a Google Sheets: {str(e)}")
+        return None
+    
+    return None
+
+def get_or_create_worksheet(sheet, sheet_name, headers):
+    """Obtiene o crea una hoja de cálculo con los encabezados"""
+    try:
+        worksheet = sheet.worksheet(sheet_name)
+        return worksheet
+    except gspread.exceptions.WorksheetNotFound:
+        # Crear nueva hoja
+        worksheet = sheet.add_worksheet(title=sheet_name, rows=1000, cols=20)
+        if headers:
+            worksheet.append_row(headers)
+        return worksheet
+    except Exception as e:
+        st.error(f"Error obteniendo hoja {sheet_name}: {str(e)}")
+        return None
+
 # --- FUNCIONES DE DATOS ---
 @st.cache_data
 def load_data():
+    """Carga datos desde Google Sheets o archivo local"""
+    # Intentar cargar desde Google Sheets primero
+    if GOOGLE_SHEETS_ENABLED and GSPREAD_AVAILABLE:
+        sheet = get_google_sheet()
+        if sheet:
+            try:
+                worksheet = get_or_create_worksheet(sheet, SHEET_FINANZAS, COLUMNS)
+                if worksheet:
+                    records = worksheet.get_all_records()
+                    if records:
+                        df = pd.DataFrame(records)
+                        df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True, errors='coerce')
+                        if "Es_Conjunto" not in df.columns: 
+                            df["Es_Conjunto"] = False
+                        return df.dropna(subset=['Fecha']).copy()
+                    else:
+                        # Si está vacía, retornar DataFrame vacío
+                        return pd.DataFrame(columns=COLUMNS)
+            except Exception as e:
+                st.warning(f"Error cargando desde Google Sheets: {str(e)}. Usando archivo local.")
+    
+    # Fallback: cargar desde archivo local
     if os.path.exists(FILE_NAME):
         try:
             df = pd.read_csv(FILE_NAME)
@@ -109,12 +199,50 @@ def load_data():
     return pd.DataFrame(columns=COLUMNS)
 
 def save_all_data(df):
+    """Guarda datos en Google Sheets o archivo local"""
     df_to_save = df.copy()
     df_to_save['Fecha'] = df_to_save['Fecha'].dt.strftime("%d/%m/%Y")
+    
+    # Intentar guardar en Google Sheets primero
+    if GOOGLE_SHEETS_ENABLED and GSPREAD_AVAILABLE:
+        sheet = get_google_sheet()
+        if sheet:
+            try:
+                worksheet = get_or_create_worksheet(sheet, SHEET_FINANZAS, COLUMNS)
+                if worksheet:
+                    # Limpiar hoja y escribir nuevos datos
+                    worksheet.clear()
+                    worksheet.append_row(COLUMNS)
+                    
+                    # Convertir DataFrame a lista de listas
+                    for _, row in df_to_save.iterrows():
+                        worksheet.append_row(row.tolist())
+                    
+                    st.cache_data.clear()
+                    return
+            except Exception as e:
+                st.warning(f"Error guardando en Google Sheets: {str(e)}. Guardando en archivo local.")
+    
+    # Fallback: guardar en archivo local
     df_to_save.to_csv(FILE_NAME, index=False)
     st.cache_data.clear()
 
 def load_recurrentes():
+    """Carga gastos recurrentes desde Google Sheets o archivo local"""
+    if GOOGLE_SHEETS_ENABLED and GSPREAD_AVAILABLE:
+        sheet = get_google_sheet()
+        if sheet:
+            try:
+                worksheet = get_or_create_worksheet(sheet, SHEET_RECURRENTES, COLUMNS_REC)
+                if worksheet:
+                    records = worksheet.get_all_records()
+                    if records:
+                        return pd.DataFrame(records)
+                    else:
+                        worksheet.append_row(COLUMNS_REC)
+            except Exception as e:
+                st.warning(f"Error cargando recurrentes desde Google Sheets: {str(e)}")
+    
     if os.path.exists(REC_FILE_NAME):
         try: 
             return pd.read_csv(REC_FILE_NAME)
@@ -123,11 +251,45 @@ def load_recurrentes():
     return pd.DataFrame(columns=COLUMNS_REC)
 
 def save_recurrentes(df):
+    """Guarda gastos recurrentes en Google Sheets o archivo local"""
+    if GOOGLE_SHEETS_ENABLED and GSPREAD_AVAILABLE:
+        sheet = get_google_sheet()
+        if sheet:
+            try:
+                worksheet = get_or_create_worksheet(sheet, SHEET_RECURRENTES, COLUMNS_REC)
+                if worksheet:
+                    worksheet.clear()
+                    worksheet.append_row(COLUMNS_REC)
+                    for _, row in df.iterrows():
+                        worksheet.append_row(row.tolist())
+                    return
+            except Exception as e:
+                st.warning(f"Error guardando recurrentes en Google Sheets: {str(e)}")
+    
     df.to_csv(REC_FILE_NAME, index=False)
 
 @st.cache_data
 def load_categories():
+    """Carga categorías desde Google Sheets o archivo local"""
     default = ["Vivienda", "Transporte", "Comida", "Seguros", "Ahorro", "Ingresos", "Otros"]
+    
+    if GOOGLE_SHEETS_ENABLED and GSPREAD_AVAILABLE:
+        sheet = get_google_sheet()
+        if sheet:
+            try:
+                worksheet = get_or_create_worksheet(sheet, SHEET_CATEGORIAS, ["Categoría"])
+                if worksheet:
+                    records = worksheet.get_all_records()
+                    if records:
+                        return [r['Categoría'] for r in records if r.get('Categoría')]
+                    else:
+                        # Inicializar con categorías por defecto
+                        for cat in default:
+                            worksheet.append_row([cat])
+                        return default
+            except Exception as e:
+                st.warning(f"Error cargando categorías desde Google Sheets: {str(e)}")
+    
     if os.path.exists(CAT_FILE_NAME):
         try:
             df = pd.read_csv(CAT_FILE_NAME)
@@ -138,7 +300,24 @@ def load_categories():
     return default
 
 def save_categories(lista):
+    """Guarda categorías en Google Sheets o archivo local"""
     lista = list(dict.fromkeys(lista))
+    
+    if GOOGLE_SHEETS_ENABLED and GSPREAD_AVAILABLE:
+        sheet = get_google_sheet()
+        if sheet:
+            try:
+                worksheet = get_or_create_worksheet(sheet, SHEET_CATEGORIAS, ["Categoría"])
+                if worksheet:
+                    worksheet.clear()
+                    worksheet.append_row(["Categoría"])
+                    for cat in lista:
+                        worksheet.append_row([cat])
+                    st.cache_data.clear()
+                    return
+            except Exception as e:
+                st.warning(f"Error guardando categorías en Google Sheets: {str(e)}")
+    
     pd.DataFrame({"Categoría": lista}).to_csv(CAT_FILE_NAME, index=False)
     st.cache_data.clear()
 
@@ -1027,6 +1206,48 @@ else:
                 st.rerun()
             else:
                 st.error("❌ Debe haber al menos una categoría")
+        
+        st.markdown("---")
+        
+        # Configuración de Google Sheets
+        st.markdown("### ☁️ Google Drive / Sheets")
+        
+        if GOOGLE_SHEETS_ENABLED and GSPREAD_AVAILABLE:
+            sheet = get_google_sheet()
+            if sheet:
+                st.success("✅ Google Sheets conectado correctamente")
+                st.info(f"📊 Libro: **{sheet.title}**")
+                st.caption("Tus datos se están guardando automáticamente en Google Drive")
+            else:
+                st.warning("⚠️ Google Sheets no está configurado correctamente")
+                st.markdown("""
+                **Para configurar Google Sheets:**
+                
+                1. Crea un proyecto en [Google Cloud Console](https://console.cloud.google.com/)
+                2. Habilita la API de Google Sheets y Google Drive
+                3. Crea una cuenta de servicio y descarga el archivo JSON de credenciales
+                4. Crea una hoja de cálculo en Google Sheets y compártela con el email de la cuenta de servicio
+                5. En Streamlit Cloud, agrega estas variables de entorno:
+                   - `GOOGLE_SHEETS_ENABLED=true`
+                   - `GOOGLE_SHEET_ID=tu_id_de_la_hoja`
+                   - `GOOGLE_CREDENTIALS_JSON=contenido_del_json_como_texto`
+                """)
+        else:
+            st.info("💡 **Google Sheets no está habilitado**")
+            st.markdown("""
+            **Actualmente los datos se guardan solo localmente. Para habilitar Google Sheets:**
+            
+            1. Instala las dependencias: `pip install gspread google-auth`
+            2. Configura las credenciales de Google Cloud
+            3. En Streamlit Cloud, configura las variables de entorno:
+               - `GOOGLE_SHEETS_ENABLED=true`
+               - `GOOGLE_SHEET_ID=tu_id_de_la_hoja`
+               - `GOOGLE_CREDENTIALS_JSON=contenido_del_json`
+            
+            **📝 Estado actual:**
+            - Almacenamiento: Archivo local (se pierde al reiniciar Streamlit Cloud)
+            - Recomendado: Configurar Google Sheets para persistencia permanente
+            """)
         
         st.markdown("---")
         
