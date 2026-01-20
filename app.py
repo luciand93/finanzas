@@ -606,7 +606,7 @@ with st.sidebar.form("form_reg", clear_on_submit=True):
                 new_row = pd.DataFrame([[pd.to_datetime(fecha), tipo, cat, con, imp_real, fre, impacto, es_conjunto]], columns=COLUMNS)
                 df = pd.concat([df, new_row], ignore_index=True)
                 save_all_data(df)
-                    registrar_cambio("Alta", f"Nuevo movimiento: {con} ({imp_real:.2f} €)")
+                registrar_cambio("Alta", f"Nuevo movimiento: {con} ({imp_real:.2f} €)")
                 st.success("Guardado")
                 st.rerun()
         else: st.error("Faltan datos")
