@@ -316,11 +316,29 @@ if modo_simulacion and len(st.session_state.simulacion) > 0:
 with st.sidebar.form("form_reg", clear_on_submit=True):
     tipo = st.radio("Tipo", ["Ingreso", "Gasto"], index=1, horizontal=True)
     es_conjunto = st.checkbox("👥 Gasto Conjunto (Div / 2)")
-    fecha = st.date_input("Fecha", datetime.now(), format="DD/MM/YYYY")
-    cat = st.selectbox("Categoría", lista_cats)
-    con = st.text_input("Concepto")
-    imp_input = st.number_input("Importe Total (€)", min_value=0.0, step=10.0, format="%.2f")
-    fre = st.selectbox("Frecuencia", ["Mensual", "Anual", "Puntual"])
+    
+    # Usar key único para evitar que cambios en fecha causen submit
+    fecha = st.date_input(
+        "Fecha", 
+        datetime.now(), 
+        format="DD/MM/YYYY",
+        key="fecha_input_form"
+    )
+    
+    cat = st.selectbox("Categoría", lista_cats, key="cat_select_form")
+    con = st.text_input("Concepto", key="concepto_input_form")
+    imp_input = st.number_input(
+        "Importe Total (€)", 
+        min_value=0.0, 
+        step=0.01, 
+        format="%.2f",
+        key="importe_input_form"
+    )
+    fre = st.selectbox(
+        "Frecuencia", 
+        ["Mensual", "Anual", "Puntual"],
+        key="frecuencia_select_form"
+    )
     
     imp_real = imp_input / 2 if es_conjunto and tipo == "Gasto" else imp_input
     if es_conjunto and tipo == "Gasto" and imp_input > 0:
@@ -328,7 +346,10 @@ with st.sidebar.form("form_reg", clear_on_submit=True):
 
     btn = "➕ Añadir a Simulación" if modo_simulacion else "💾 Guardar"
     
-    if st.form_submit_button(btn, use_container_width=True):
+    # Solo procesar cuando se hace clic explícitamente en el botón
+    submitted = st.form_submit_button(btn, use_container_width=True)
+    
+    if submitted:
         if imp_input > 0 and con:
             impacto = imp_real / 12 if fre == "Anual" else imp_real
             
@@ -468,11 +489,78 @@ else:
                     st.success(f"Generados {len(nuevos_movs)} movimientos"); st.rerun()
 
     with tab5:
-        edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True,
-                                   column_config={"Fecha": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY")})
-        if st.button("Guardar Tabla"):
-            edited_df['Impacto_Mensual'] = edited_df.apply(lambda x: x['Importe']/12 if x['Frecuencia']=="Anual" else x['Importe'], axis=1)
-            save_all_data(edited_df); st.rerun()
+        st.subheader("📝 Editar Movimientos")
+        st.caption("Edita los movimientos directamente en la tabla y haz clic en 'Guardar Cambios'")
+        
+        # Preparar DataFrame para edición
+        df_edit = df.copy()
+        df_edit['Fecha'] = df_edit['Fecha'].dt.date  # Convertir a date para el editor
+        
+        edited_df = st.data_editor(
+            df_edit, 
+            num_rows="dynamic", 
+            use_container_width=True,
+            key="editor_movimientos",
+            column_config={
+                "Fecha": st.column_config.DateColumn(
+                    "Fecha", 
+                    format="DD/MM/YYYY",
+                    required=True
+                ),
+                "Tipo": st.column_config.SelectboxColumn(
+                    "Tipo",
+                    options=["Ingreso", "Gasto"],
+                    required=True
+                ),
+                "Categoría": st.column_config.SelectboxColumn(
+                    "Categoría",
+                    options=lista_cats,
+                    required=True
+                ),
+                "Concepto": st.column_config.TextColumn(
+                    "Concepto",
+                    required=True
+                ),
+                "Importe": st.column_config.NumberColumn(
+                    "Importe (€)",
+                    min_value=0.0,
+                    step=0.01,
+                    format="%.2f",
+                    required=True
+                ),
+                "Frecuencia": st.column_config.SelectboxColumn(
+                    "Frecuencia",
+                    options=["Mensual", "Anual", "Puntual"],
+                    required=True
+                ),
+                "Impacto_Mensual": st.column_config.NumberColumn(
+                    "Impacto Mensual (€)",
+                    min_value=0.0,
+                    step=0.01,
+                    format="%.2f"
+                ),
+                "Es_Conjunto": st.column_config.CheckboxColumn(
+                    "Es Conjunto"
+                )
+            }
+        )
+        
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("💾 Guardar Cambios", type="primary", use_container_width=True):
+                # Convertir fecha de date a datetime
+                edited_df['Fecha'] = pd.to_datetime(edited_df['Fecha'])
+                # Recalcular Impacto_Mensual
+                edited_df['Impacto_Mensual'] = edited_df.apply(
+                    lambda x: x['Importe']/12 if x['Frecuencia']=="Anual" else x['Importe'], 
+                    axis=1
+                )
+                save_all_data(edited_df)
+                st.success("✅ Cambios guardados correctamente")
+                st.rerun()
+        with col_btn2:
+            if st.button("🔄 Recargar", use_container_width=True):
+                st.rerun()
 
     with tab6:
         st.subheader("📤 Exportar Datos")
