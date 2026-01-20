@@ -739,12 +739,12 @@ else:
         )
         
         if tipo_visualizacion == "Evolución Temporal":
-        df_ev = df.groupby([df['Fecha'].dt.to_period('M'), 'Tipo'])['Importe'].sum().reset_index()
-        df_ev['Mes'] = df_ev['Fecha'].dt.to_timestamp().apply(formatear_periodo_es)
-        fig = px.bar(df_ev.sort_values("Fecha"), x='Mes', y='Importe', color='Tipo', barmode='group',
+            df_ev = df.groupby([df['Fecha'].dt.to_period('M'), 'Tipo'])['Importe'].sum().reset_index()
+            df_ev['Mes'] = df_ev['Fecha'].dt.to_timestamp().apply(formatear_periodo_es)
+            fig = px.bar(df_ev.sort_values("Fecha"), x='Mes', y='Importe', color='Tipo', barmode='group',
                          color_discrete_map={'Ingreso': '#00CC96', 'Gasto': '#EF553B'},
                          title="Evolución de Ingresos y Gastos")
-        st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True)
         
         elif tipo_visualizacion == "Distribución por Categorías":
             df_cat = df[df['Tipo'] == 'Gasto'].groupby('Categoría')['Importe'].sum().reset_index()
