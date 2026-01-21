@@ -16,6 +16,13 @@ try:
 except ImportError:
     GSPREAD_AVAILABLE = False
 
+# Intentar importar Google Generative AI (Gemini)
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+
 # --- CONFIGURACIÓN PÁGINA ---
 st.set_page_config(
     page_title="Finanzas Proactivas €", 
@@ -36,6 +43,26 @@ BACKUP_DIR = "backups"
 GOOGLE_SHEETS_ENABLED = os.getenv('GOOGLE_SHEETS_ENABLED', 'false').lower() == 'true'
 GOOGLE_SHEET_ID = os.getenv('GOOGLE_SHEET_ID', '')
 GOOGLE_CREDENTIALS_JSON = os.getenv('GOOGLE_CREDENTIALS_JSON', '')
+
+# Configuración de Gemini (Google AI)
+# Intentar obtener API key de st.secrets primero, luego de os.getenv
+try:
+    GEMINI_API_KEY = st.secrets.get('GEMINI_API_KEY', '') or os.getenv('GEMINI_API_KEY', '')
+except:
+    GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+
+GEMINI_ENABLED = GEMINI_AVAILABLE and GEMINI_API_KEY != ''
+GEMINI_MODEL = None
+
+# Inicializar Gemini si está disponible
+if GEMINI_ENABLED:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        # Usar el modelo gemini-1.5-flash para respuestas rápidas (o gemini-1.5-pro para más precisión)
+        GEMINI_MODEL = genai.GenerativeModel('gemini-1.5-flash')
+    except Exception as e:
+        GEMINI_ENABLED = False
+        GEMINI_MODEL = None
 
 # Nombres de las hojas en Google Sheets
 SHEET_FINANZAS = "Finanzas"
@@ -520,9 +547,111 @@ def generar_recomendaciones(df, presupuestos, patrones):
     
     return recomendaciones
 
+# --- FUNCIONES DE GEMINI AI ---
+def preparar_contexto_financiero(df, df_presupuestos=None):
+    """Prepara un resumen estructurado de los datos financieros para Gemini"""
+    if df.empty:
+        return "No hay datos financieros disponibles."
+    
+    now = datetime.now()
+    df_mes = df[(df['Fecha'].dt.month == now.month) & (df['Fecha'].dt.year == now.year)]
+    df_mes_anterior = df[(df['Fecha'].dt.month == (now.month - 1) % 12 + (1 if now.month == 1 else 0)) & 
+                         (df['Fecha'].dt.year == (now.year if now.month > 1 else now.year - 1))]
+    
+    # Ingresos y gastos
+    ingresos_mes = df_mes[df_mes['Tipo'] == "Ingreso"]['Importe'].sum()
+    gastos_mes = df_mes[df_mes['Tipo'] == "Gasto"]['Importe'].sum()
+    ingresos_mes_anterior = df_mes_anterior[df_mes_anterior['Tipo'] == "Ingreso"]['Importe'].sum() if not df_mes_anterior.empty else 0
+    gastos_mes_anterior = df_mes_anterior[df_mes_anterior['Tipo'] == "Gasto"]['Importe'].sum() if not df_mes_anterior.empty else 0
+    
+    # Gastos por categoría del mes actual
+    gastos_por_categoria = df_mes[df_mes['Tipo'] == 'Gasto'].groupby('Categoría')['Importe'].sum().to_dict()
+    
+    # Gastos recurrentes
+    df_recurrentes = df[df['Frecuencia'].isin(['Mensual', 'Anual'])]
+    gastos_recurrentes = df_recurrentes.groupby(['Categoría', 'Concepto'])['Importe'].sum().to_dict()
+    
+    # Top gastos del mes
+    top_gastos = df_mes[df_mes['Tipo'] == 'Gasto'].nlargest(5, 'Importe')[['Concepto', 'Categoría', 'Importe']].to_dict('records')
+    
+    # Promedio mensual histórico
+    n_meses = max(len(df['Fecha'].dt.to_period('M').unique()), 1)
+    gasto_promedio_historico = df[df['Tipo'] == "Gasto"]['Impacto_Mensual'].sum() / n_meses
+    ingreso_promedio_historico = df[df['Tipo'] == "Ingreso"].groupby(df['Fecha'].dt.to_period('M'))['Importe'].sum().mean() if not df[df['Tipo'] == "Ingreso"].empty else 0
+    
+    contexto = f"""
+RESUMEN FINANCIERO DEL MES ACTUAL ({MESES_ES_DICT[now.month]} {now.year}):
+
+INGRESOS:
+- Ingresos del mes actual: {ingresos_mes:,.2f} €
+- Ingresos del mes anterior: {ingresos_mes_anterior:,.2f} €
+- Promedio mensual histórico: {ingreso_promedio_historico:,.2f} €
+
+GASTOS:
+- Gastos del mes actual: {gastos_mes:,.2f} €
+- Gastos del mes anterior: {gastos_mes_anterior:,.2f} €
+- Promedio mensual histórico: {gasto_promedio_historico:,.2f} €
+- Balance del mes: {ingresos_mes - gastos_mes:,.2f} €
+
+GASTOS POR CATEGORÍA (MES ACTUAL):
+"""
+    for categoria, importe in sorted(gastos_por_categoria.items(), key=lambda x: x[1], reverse=True):
+        contexto += f"- {categoria}: {importe:,.2f} €\n"
+    
+    if top_gastos:
+        contexto += "\nTOP 5 GASTOS MÁS ALTOS DEL MES:\n"
+        for i, gasto in enumerate(top_gastos, 1):
+            contexto += f"{i}. {gasto['Concepto']} ({gasto['Categoría']}): {gasto['Importe']:,.2f} €\n"
+    
+    if df_presupuestos is not None and not df_presupuestos.empty:
+        contexto += "\nPRESUPUESTOS MENSUALES:\n"
+        for _, presup in df_presupuestos.iterrows():
+            if presup['Presupuesto_Mensual'] > 0:
+                gasto_cat = gastos_por_categoria.get(presup['Categoría'], 0)
+                porcentaje = (gasto_cat / presup['Presupuesto_Mensual']) * 100 if presup['Presupuesto_Mensual'] > 0 else 0
+                contexto += f"- {presup['Categoría']}: {gasto_cat:,.2f} € / {presup['Presupuesto_Mensual']:,.2f} € ({porcentaje:.1f}%)\n"
+    
+    contexto += f"\nTOTAL DE REGISTROS: {len(df)} movimientos"
+    contexto += f"\nRANGO DE FECHAS: {df['Fecha'].min().strftime('%d/%m/%Y')} - {df['Fecha'].max().strftime('%d/%m/%Y')}"
+    
+    return contexto
+
+def chat_con_gemini(pregunta, contexto_financiero, historial_chat=None):
+    """Envía una pregunta a Gemini con el contexto financiero"""
+    if not GEMINI_ENABLED or GEMINI_MODEL is None:
+        return "Gemini no está configurado. Por favor, configura GEMINI_API_KEY en las variables de entorno."
+    
+    try:
+        # Construir el prompt con contexto
+        prompt = f"""Eres un asistente financiero experto y amigable. El usuario tiene preguntas sobre sus finanzas personales.
+
+CONTEXTO FINANCIERO ACTUAL:
+{contexto_financiero}
+
+INSTRUCCIONES:
+- Responde en español de manera clara y concisa
+- Usa los datos proporcionados para dar respuestas precisas
+- Si la pregunta requiere cálculos, hazlos con los datos disponibles
+- Sé proactivo y ofrece recomendaciones útiles cuando sea apropiado
+- Si falta información para responder, indícalo claramente
+- Formatea los números con 2 decimales y el símbolo € cuando sea apropiado
+
+PREGUNTA DEL USUARIO:
+{pregunta}
+
+RESPUESTA:"""
+        
+        # Generar respuesta
+        response = GEMINI_MODEL.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Error al comunicarse con Gemini: {str(e)}. Por favor, verifica tu API key y conexión."
+
 # --- ESTADO SESIÓN ---
 if 'simulacion' not in st.session_state: 
     st.session_state.simulacion = []
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
 
 # --- CARGA ---
 df = load_data()
@@ -688,7 +817,99 @@ else:
                         if dia in patrones['gastos_por_dia']:
                             st.write(f"- {dias_es.get(dia, dia)}: {patrones['gastos_por_dia'][dia]:,.2f} €")
         
-        # 2. PARTE INFERIOR: ZONA DE SIMULACIÓN
+        # 2. CHAT CON GEMINI AI
+        st.markdown("---")
+        st.subheader("🤖 Asistente IA con Gemini")
+        st.caption("Haz preguntas en lenguaje natural sobre tus finanzas y recibe respuestas inteligentes")
+        
+        if GEMINI_ENABLED and GEMINI_MODEL is not None:
+            # Preparar contexto financiero
+            contexto_financiero = preparar_contexto_financiero(df, df_presupuestos)
+            
+            # Mostrar historial de chat
+            if st.session_state.chat_history:
+                st.markdown("**💬 Conversación:**")
+                for mensaje in st.session_state.chat_history[-10:]:  # Mostrar últimos 10 mensajes
+                    if mensaje['tipo'] == 'usuario':
+                        with st.chat_message("user"):
+                            st.write(mensaje['contenido'])
+                    else:
+                        with st.chat_message("assistant"):
+                            st.write(mensaje['contenido'])
+            
+            # Campo de entrada para preguntas
+            st.markdown("**💭 Haz una pregunta sobre tus finanzas:**")
+            pregunta = st.text_input(
+                "Ejemplos: '¿Cuánto he gastado en comida este mes?', '¿Cuál es mi categoría con más gastos?', '¿Cómo van mis presupuestos?'",
+                key="pregunta_gemini",
+                label_visibility="collapsed"
+            )
+            
+            col_ask, col_clear = st.columns([3, 1])
+            with col_ask:
+                if st.button("💬 Enviar Pregunta", type="primary", use_container_width=True):
+                    if pregunta.strip():
+                        with st.spinner("🤔 Pensando..."):
+                            respuesta = chat_con_gemini(pregunta, contexto_financiero)
+                            
+                            # Guardar en historial
+                            st.session_state.chat_history.append({
+                                'tipo': 'usuario',
+                                'contenido': pregunta
+                            })
+                            st.session_state.chat_history.append({
+                                'tipo': 'asistente',
+                                'contenido': respuesta
+                            })
+                        st.rerun()
+            
+            with col_clear:
+                if st.button("🗑️ Limpiar Chat", use_container_width=True):
+                    st.session_state.chat_history = []
+                    st.rerun()
+            
+            # Sugerencias de preguntas
+            with st.expander("💡 Preguntas sugeridas"):
+                sugerencias = [
+                    "¿Cuánto he gastado este mes?",
+                    "¿Cuál es mi categoría con más gastos?",
+                    "¿Cómo van mis presupuestos?",
+                    "¿En qué categoría debería ahorrar más?",
+                    "¿Cuánto puedo ahorrar este mes?",
+                    "Compara mis gastos de este mes con el anterior",
+                    "¿Qué gastos recurrentes tengo?",
+                    "Dame recomendaciones para mejorar mis finanzas"
+                ]
+                cols_sug = st.columns(2)
+                for i, sug in enumerate(sugerencias):
+                    with cols_sug[i % 2]:
+                        if st.button(sug, key=f"sug_{i}", use_container_width=True):
+                            # Simular pregunta
+                            with st.spinner("🤔 Pensando..."):
+                                respuesta = chat_con_gemini(sug, contexto_financiero)
+                                st.session_state.chat_history.append({
+                                    'tipo': 'usuario',
+                                    'contenido': sug
+                                })
+                                st.session_state.chat_history.append({
+                                    'tipo': 'asistente',
+                                    'contenido': respuesta
+                                })
+                            st.rerun()
+        else:
+            st.warning("⚠️ Gemini no está configurado. Para activar el asistente IA:")
+            st.info("""
+            1. Obtén una API key de Google AI Studio: https://makersuite.google.com/app/apikey
+            2. Agrega la variable de entorno: `GEMINI_API_KEY=tu_api_key`
+            3. En Streamlit Cloud, ve a Settings → Secrets y agrega:
+               ```
+               GEMINI_API_KEY=tu_api_key_aqui
+               ```
+            """)
+            if not GEMINI_AVAILABLE:
+                st.error("❌ La librería `google-generativeai` no está instalada. Ejecuta: `pip install google-generativeai`")
+        
+        # 3. PARTE INFERIOR: ZONA DE SIMULACIÓN
         st.markdown("---")
         if len(st.session_state.simulacion) > 0:
             st.subheader("🧪 Análisis de Escenario Simulado")
@@ -1182,6 +1403,47 @@ else:
                 st.rerun()
             else:
                 st.error("❌ Debe haber al menos una categoría")
+        
+        st.markdown("---")
+        
+        # Configuración de Gemini AI
+        st.markdown("### 🤖 Asistente IA con Gemini")
+        
+        if GEMINI_ENABLED and GEMINI_MODEL is not None:
+            st.success("✅ Gemini está activo y listo para responder tus preguntas")
+            st.info("💡 Ve a la pestaña 'Asesor' para chatear con el asistente IA")
+        else:
+            st.warning("⚠️ Gemini no está configurado")
+            st.markdown("""
+            **Para activar el asistente IA de Gemini:**
+            
+            1. Obtén una API key gratuita de Google AI Studio:
+               - Visita: https://makersuite.google.com/app/apikey
+               - O: https://aistudio.google.com/app/apikey
+               - Inicia sesión con tu cuenta de Google
+               - Crea una nueva API key
+            
+            2. Configura la API key:
+               - **En Streamlit Cloud:** Ve a Settings → Secrets y agrega:
+                 ```
+                 GEMINI_API_KEY=tu_api_key_aqui
+                 ```
+               - **En local:** Crea un archivo `.streamlit/secrets.toml` con:
+                 ```
+                 GEMINI_API_KEY = "tu_api_key_aqui"
+                 ```
+            
+            3. Reinicia la aplicación
+            
+            **Características del asistente:**
+            - Responde preguntas sobre tus gastos e ingresos
+            - Analiza tus datos financieros en tiempo real
+            - Ofrece recomendaciones personalizadas
+            - Compara meses y categorías
+            - Ayuda con la gestión de presupuestos
+            """)
+            if not GEMINI_AVAILABLE:
+                st.error("❌ La librería no está instalada. Instala: `pip install google-generativeai`")
         
         st.markdown("---")
         
