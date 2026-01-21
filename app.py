@@ -1635,17 +1635,26 @@ if st.session_state.menu_abierto:
     # Crear menú lateral derecho con contenedor de Streamlit
     st.markdown("""
     <style>
-    .menu-wrapper {
-        position: fixed;
-        top: 0;
-        right: 0;
-        width: 280px;
-        height: 100vh;
-        background: var(--background-color);
-        box-shadow: -2px 0 10px rgba(0,0,0,0.3);
-        z-index: 99999;
-        padding: 1rem;
-        overflow-y: auto;
+    div[data-testid="stContainer"]:has(button[key="btn_cerrar_menu"]) {
+        position: fixed !important;
+        top: 0 !important;
+        right: 0 !important;
+        width: 280px !important;
+        height: 100vh !important;
+        background: var(--background-color) !important;
+        box-shadow: -2px 0 10px rgba(0,0,0,0.3) !important;
+        z-index: 99999 !important;
+        padding: 1rem !important;
+        overflow-y: auto !important;
+        animation: slideInRight 0.3s ease !important;
+    }
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+        }
+        to {
+            transform: translateX(0);
+        }
     }
     </style>
     """, unsafe_allow_html=True)
