@@ -413,41 +413,95 @@ st.markdown("""
         background: rgba(102, 126, 234, 0.7);
     }
 </style>
+""", unsafe_allow_html=True)
 
+# --- JAVASCRIPT PARA PREVENIR PROBLEMAS DEL CALENDARIO EN MÓVIL ---
+st.components.v1.html("""
 <script>
-    // Script para prevenir que el teclado se abra y el formulario se oculte
-    document.addEventListener('DOMContentLoaded', function() {
-        // Prevenir que el input de fecha abra el teclado en móvil
+(function() {
+    function fixDateInput() {
+        // Prevenir que el input de fecha abra el teclado
         const dateInputs = document.querySelectorAll('.stDateInput input');
         dateInputs.forEach(input => {
-            input.setAttribute('readonly', 'readonly');
-            input.setAttribute('inputmode', 'none');
-            
-            // Prevenir focus que abriría el teclado
-            input.addEventListener('focus', function(e) {
-                e.preventDefault();
-                this.blur();
-            });
-            
-            // Prevenir clicks que puedan abrir el teclado
-            input.addEventListener('touchstart', function(e) {
-                e.preventDefault();
-            }, {passive: false});
+            if (!input.hasAttribute('data-fixed')) {
+                input.setAttribute('readonly', 'readonly');
+                input.setAttribute('inputmode', 'none');
+                input.setAttribute('data-fixed', 'true');
+                
+                // Prevenir focus que abriría el teclado
+                input.addEventListener('focus', function(e) {
+                    e.preventDefault();
+                    setTimeout(() => this.blur(), 0);
+                }, true);
+                
+                // Prevenir touchstart
+                input.addEventListener('touchstart', function(e) {
+                    // Permitir que el calendario se abra pero prevenir teclado
+                    setTimeout(() => {
+                        if (document.activeElement === this) {
+                            this.blur();
+                        }
+                    }, 100);
+                }, {passive: true});
+                
+                // Prevenir que el formulario se recargue al cambiar fecha
+                input.addEventListener('change', function(e) {
+                    e.stopPropagation();
+                }, true);
+            }
         });
         
-        // Prevenir que el formulario se oculte al hacer clic en el calendario
-        document.addEventListener('click', function(e) {
-            // Si el clic es en el calendario o sus elementos
-            if (e.target.closest('[data-baseweb="popover"]') || 
-                e.target.closest('.rdp') || 
-                e.target.closest('.rdp-day')) {
-                // Prevenir que se cierre el formulario
+        // Prevenir que clicks en el calendario cierren el formulario
+        const calendarPopover = document.querySelector('[data-baseweb="popover"]');
+        if (calendarPopover) {
+            calendarPopover.addEventListener('click', function(e) {
                 e.stopPropagation();
-            }
-        }, true);
-    });
+            }, true);
+            
+            // Prevenir clicks en días del calendario
+            const calendarDays = calendarPopover.querySelectorAll('.rdp-day, [role="gridcell"]');
+            calendarDays.forEach(day => {
+                day.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    // Forzar que el formulario se mantenga visible
+                    setTimeout(() => {
+                        const form = document.querySelector('form[data-testid="stForm"]');
+                        if (form) {
+                            form.style.display = 'block';
+                            form.style.visibility = 'visible';
+                        }
+                    }, 100);
+                }, true);
+            });
+        }
+        
+        // Observar cambios en el DOM para aplicar fixes a nuevos elementos
+        const observer = new MutationObserver(function(mutations) {
+            dateInputs.forEach(input => {
+                if (input && !input.hasAttribute('data-fixed')) {
+                    fixDateInput();
+                }
+            });
+        });
+        
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
+    
+    // Ejecutar al cargar y después de un delay
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fixDateInput);
+    } else {
+        fixDateInput();
+    }
+    
+    // Ejecutar periódicamente para asegurar que se aplica
+    setInterval(fixDateInput, 1000);
+})();
 </script>
-""", unsafe_allow_html=True)
+""", height=0)
 
 # --- CONSTANTES ---
 FILE_NAME = "finanzas.csv"
@@ -1162,17 +1216,24 @@ if recordatorios:
     for rec in recordatorios[:3]:  # Mostrar máximo 3
         st.sidebar.caption(f"💡 {rec['mensaje']}")
 
+# Mantener la fecha en session_state para evitar que se pierda
+if 'fecha_seleccionada' not in st.session_state:
+    st.session_state.fecha_seleccionada = datetime.now().date()
+
+# Input de fecha FUERA del form para evitar problemas en móvil
+fecha = st.sidebar.date_input(
+    "📅 Fecha", 
+    value=st.session_state.fecha_seleccionada,
+    format="DD/MM/YYYY",
+    key="fecha_input_sidebar"
+)
+
+# Actualizar session_state
+st.session_state.fecha_seleccionada = fecha
+
 with st.sidebar.form("form_reg", clear_on_submit=True):
     tipo = st.radio("Tipo", ["Ingreso", "Gasto"], index=1, horizontal=True)
     es_conjunto = st.checkbox("👥 Gasto Conjunto (Div / 2)")
-    
-    # Input de fecha mejorado para móviles
-    fecha = st.date_input(
-        "📅 Fecha", 
-        datetime.now(), 
-        format="DD/MM/YYYY",
-        key="fecha_input_form"
-    )
     
     cat = st.selectbox("Categoría", lista_cats, key="cat_select_form")
     con = st.text_input("Concepto", key="concepto_input_form")
