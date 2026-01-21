@@ -383,9 +383,53 @@ st.markdown("""
         margin-bottom: 1rem;
     }
     
-    /* Mejorar contenedores principales */
+    /* Mejorar contenedores principales - Aprovechar toda la pantalla */
     .main .block-container {
-        max-width: 1200px;
+        max-width: 100% !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        padding-top: 0.5rem !important;
+    }
+    
+    /* Header fijo con botón de alta - Siempre visible */
+    .top-header {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 100 !important;
+        background: var(--background-color) !important;
+        padding: 0.75rem 1rem !important;
+        margin: -1rem -1rem 1rem -1rem !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+        backdrop-filter: blur(10px);
+    }
+    
+    @media (max-width: 768px) {
+        .top-header {
+            padding: 0.5rem 0.75rem !important;
+            margin: -0.5rem -0.75rem 0.75rem -0.75rem !important;
+        }
+        
+        /* Menú más compacto en móvil */
+        .top-header .stSelectbox {
+            font-size: 0.9rem !important;
+        }
+        
+        .top-header .stButton > button {
+            font-size: 0.85rem !important;
+            padding: 0.5rem 0.75rem !important;
+        }
+    }
+    
+    /* Aprovechar máximo espacio - reducir padding innecesario */
+    .main .block-container {
+        padding-top: 0.5rem !important;
+    }
+    
+    /* Eliminar padding superior del título si existe */
+    h1:first-of-type {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
     }
     
     /* Headers más atractivos */
@@ -465,19 +509,38 @@ st.markdown("""
         background: var(--background-color);
         border-radius: 1rem;
         padding: 2rem;
-        max-width: 500px;
+        max-width: 600px;
         width: 90%;
         max-height: 90vh;
         overflow-y: auto;
         box-shadow: 0 10px 40px rgba(0,0,0,0.3);
         position: relative;
+        margin: auto;
     }
     
     @media (max-width: 768px) {
         .modal-content {
             width: 95%;
-            padding: 1.5rem;
+            padding: 1.25rem;
             max-height: 95vh;
+            border-radius: 0.75rem;
+        }
+        
+        /* Formulario más compacto en móvil */
+        .modal-content .stForm {
+            padding: 0.75rem !important;
+        }
+        
+        /* Columnas se apilan en móvil dentro del modal */
+        .modal-content .stColumn {
+            width: 100% !important;
+        }
+    }
+    
+    /* Aprovechar mejor el espacio en desktop */
+    @media (min-width: 769px) {
+        .modal-content {
+            max-width: 700px;
         }
     }
     
@@ -1284,6 +1347,8 @@ if 'chat_input_key' not in st.session_state:
     st.session_state.chat_input_key = 0
 if 'show_modal' not in st.session_state:
     st.session_state.show_modal = False
+if 'seccion_actual' not in st.session_state:
+    st.session_state.seccion_actual = "🤖 Asesor"
 
 # --- CARGA ---
 df = load_data()
@@ -1309,11 +1374,7 @@ if recordatorios:
     for rec in recordatorios[:3]:  # Mostrar máximo 3
         st.sidebar.caption(f"💡 {rec['mensaje']}")
 
-# Botón para abrir modal de nuevo movimiento
-st.sidebar.markdown("---")
-if st.sidebar.button("➕ Nuevo Movimiento", type="primary", use_container_width=True):
-    st.session_state.show_modal = True
-    st.rerun()
+# El botón de alta está ahora en el header superior
 
 # Modal/Popup para el formulario
 if st.session_state.show_modal:
@@ -1326,43 +1387,58 @@ if st.session_state.show_modal:
         
         st.markdown("### 📝 Nuevo Movimiento")
         
-        # Formulario dentro del modal
+        # Formulario inteligente y adaptativo dentro del modal
         with st.form("form_reg_modal", clear_on_submit=True):
-            tipo = st.radio("Tipo", ["Ingreso", "Gasto"], index=1, horizontal=True)
-            es_conjunto = st.checkbox("👥 Gasto Conjunto (Div / 2)")
+            # Primera fila: Tipo y Gasto Conjunto
+            col_tipo, col_conjunto = st.columns([2, 1])
+            with col_tipo:
+                tipo = st.radio("Tipo", ["Ingreso", "Gasto"], index=1, horizontal=True)
+            with col_conjunto:
+                es_conjunto = st.checkbox("👥 Conjunto", help="Dividir entre 2")
             
-            # Fecha DENTRO del formulario
-            fecha = st.date_input(
-                "📅 Fecha", 
-                datetime.now(), 
-                format="DD/MM/YYYY",
-                key="fecha_input_modal"
-            )
+            # Segunda fila: Fecha y Categoría
+            col_fecha, col_cat = st.columns(2)
+            with col_fecha:
+                fecha = st.date_input(
+                    "📅 Fecha", 
+                    datetime.now(), 
+                    format="DD/MM/YYYY",
+                    key="fecha_input_modal"
+                )
+            with col_cat:
+                cat = st.selectbox("Categoría", lista_cats, key="cat_select_modal")
             
-            cat = st.selectbox("Categoría", lista_cats, key="cat_select_modal")
-            con = st.text_input("Concepto", key="concepto_input_modal")
-            imp_input = st.number_input(
-                "Importe Total (€)", 
-                min_value=0.0, 
-                step=0.01, 
-                format="%.2f",
-                key="importe_input_modal"
-            )
-            fre = st.selectbox(
-                "Frecuencia", 
-                ["Mensual", "Anual", "Puntual"],
-                key="frecuencia_select_modal"
-            )
+            # Tercera fila: Concepto (ancho completo)
+            con = st.text_input("Concepto", key="concepto_input_modal", placeholder="Descripción del movimiento")
             
+            # Cuarta fila: Importe y Frecuencia
+            col_imp, col_fre = st.columns([2, 1])
+            with col_imp:
+                imp_input = st.number_input(
+                    "Importe Total (€)", 
+                    min_value=0.0, 
+                    step=0.01, 
+                    format="%.2f",
+                    key="importe_input_modal"
+                )
+            with col_fre:
+                fre = st.selectbox(
+                    "Frecuencia", 
+                    ["Puntual", "Mensual", "Anual"],
+                    key="frecuencia_select_modal"
+                )
+            
+            # Mostrar cálculo si es conjunto
             imp_real = imp_input / 2 if es_conjunto and tipo == "Gasto" else imp_input
             if es_conjunto and tipo == "Gasto" and imp_input > 0:
-                st.caption(f"ℹ️ Se registrarán **{imp_real:.2f} €**")
+                st.info(f"ℹ️ Se registrarán **{imp_real:.2f} €** (mitad del total)")
 
+            # Botones de acción
             btn = "➕ Añadir a Simulación" if modo_simulacion else "💾 Guardar"
             
-            col_submit, col_cancel = st.columns(2)
+            col_submit, col_cancel = st.columns([2, 1])
             with col_submit:
-                submitted = st.form_submit_button(btn, use_container_width=True)
+                submitted = st.form_submit_button(btn, type="primary", use_container_width=True)
             with col_cancel:
                 if st.form_submit_button("❌ Cancelar", use_container_width=True):
                     st.session_state.show_modal = False
@@ -1407,10 +1483,40 @@ if st.session_state.show_modal:
             st.session_state.show_modal = False
             st.rerun()
 
-# --- DASHBOARD ---
-st.title("🚀 Finanzas Personales (€)")
+# --- HEADER SUPERIOR CON BOTÓN DE ALTA ---
+st.markdown('<div class="top-header">', unsafe_allow_html=True)
+col_header1, col_header2, col_header3 = st.columns([2, 3, 1])
+with col_header1:
+    st.markdown("### 🚀 Finanzas Personales")
+with col_header2:
+    # Menú desplegable para secciones
+    opciones_menu = {
+        "🤖 Asesor": "Asesor",
+        "📊 Gráficos": "Gráficos",
+        "🔍 Tabla": "Tabla",
+        "🔄 Recurrentes": "Recurrentes",
+        "📝 Editar": "Editar",
+        "📤 Exportar/Importar": "Exportar",
+        "💰 Presupuestos": "Presupuestos",
+        "⚙️ Config": "Config"
+    }
+    seccion_seleccionada = st.selectbox(
+        "Navegación",
+        options=list(opciones_menu.keys()),
+        index=list(opciones_menu.keys()).index(st.session_state.seccion_actual) if st.session_state.seccion_actual in opciones_menu.keys() else 0,
+        key="menu_navegacion",
+        label_visibility="collapsed"
+    )
+    st.session_state.seccion_actual = seccion_seleccionada
+with col_header3:
+    if st.button("➕ Nuevo Movimiento", type="primary", use_container_width=True, key="btn_alta_header"):
+        st.session_state.show_modal = True
+        st.rerun()
+st.markdown('</div>', unsafe_allow_html=True)
 
-if df.empty: st.info("Empieza añadiendo movimientos.")
+# --- DASHBOARD ---
+if df.empty: 
+    st.info("Empieza añadiendo movimientos.")
 else:
     # CÁLCULOS REALES
     now = datetime.now()
@@ -1424,13 +1530,11 @@ else:
     prov_anual = df_anuales['Impacto_Mensual'].sum() if not df_anuales.empty else 0
     total_conjunto = df[df['Es_Conjunto'] == True]['Importe'].sum()
 
-    # PESTAÑAS
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
-        ["🤖 Asesor", "📊 Gráficos", "🔍 Tabla", "🔄 Recurrentes", "📝 Editar", "📤 Exportar/Importar", "💰 Presupuestos", "⚙️ Config"]
-    )
-
-    # --- TAB 1: ASESOR INTELIGENTE & SIMULACIÓN ---
-    with tab1:
+    # Mostrar sección según selección del menú
+    seccion_actual = st.session_state.seccion_actual
+    
+    # --- SECCIÓN: ASESOR INTELIGENTE & SIMULACIÓN ---
+    if seccion_actual == "🤖 Asesor":
         # Cargar presupuestos y analizar patrones
         df_presupuestos = load_presupuestos()
         patrones = analizar_patrones(df)
@@ -1620,7 +1724,8 @@ else:
         else:
             st.info("💡 Consejo: Activa el 'Modo Simulación' en la barra lateral para probar gastos sin ensuciar tus datos.")
 
-    with tab2:
+    # --- SECCIÓN: GRÁFICOS ---
+    elif seccion_actual == "📊 Gráficos":
         st.subheader("📊 Visualizaciones Avanzadas")
         
         tipo_visualizacion = st.selectbox(
@@ -1774,11 +1879,12 @@ else:
             else:
                 st.info("No hay datos de gastos para mostrar")
 
-    with tab3:
+    # --- SECCIÓN: TABLA ---
+    elif seccion_actual == "🔍 Tabla":
         st.dataframe(df.style.format({"Fecha": lambda t: t.strftime("%d/%m/%Y"), "Importe": "{:,.2f} €"}), use_container_width=True)
 
-    # --- RECURRENTES ---
-    with tab4:
+    # --- SECCIÓN: RECURRENTES ---
+    elif seccion_actual == "🔄 Recurrentes":
         st.subheader("🔄 Generador de Gastos Fijos")
         col_list, col_action = st.columns([2, 1])
         
@@ -1803,7 +1909,8 @@ else:
                     save_all_data(df)
                     st.success(f"Generados {len(nuevos_movs)} movimientos"); st.rerun()
 
-    with tab5:
+    # --- SECCIÓN: EDITAR ---
+    elif seccion_actual == "📝 Editar":
         st.subheader("📝 Editar Movimientos")
         st.caption("Edita los movimientos directamente en la tabla y haz clic en 'Guardar Cambios'")
         
@@ -1879,7 +1986,8 @@ else:
             if st.button("🔄 Recargar", use_container_width=True):
                 st.rerun()
 
-    with tab6:
+    # --- SECCIÓN: EXPORTAR/IMPORTAR ---
+    elif seccion_actual == "📤 Exportar/Importar":
         st.subheader("📤 Exportar / 📥 Importar Datos")
         
         tab_exp, tab_imp = st.tabs(["📤 Exportar", "📥 Importar"])
@@ -1981,8 +2089,8 @@ else:
                     st.error(f"Error leyendo archivo: {str(e)}")
                     st.caption("Tip: Asegúrate de que el archivo sea CSV válido con separador de coma o punto y coma")
     
-    # --- TAB 7: PRESUPUESTOS ---
-    with tab7:
+    # --- SECCIÓN: PRESUPUESTOS ---
+    elif seccion_actual == "💰 Presupuestos":
         st.subheader("💰 Presupuestos Mensuales")
         st.caption("Establece presupuestos por categoría y recibe alertas cuando te acerques al límite")
         
@@ -2052,8 +2160,8 @@ else:
                         else:
                             st.success(f"✅ Quedan {restante:,.2f} €")
     
-    # --- TAB 8: CONFIGURACIÓN Y SEGURIDAD ---
-    with tab8:
+    # --- SECCIÓN: CONFIGURACIÓN ---
+    elif seccion_actual == "⚙️ Config":
         st.subheader("⚙️ Configuración")
         
         # Gestión de categorías
