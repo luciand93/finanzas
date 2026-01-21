@@ -31,6 +31,234 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- CSS PERSONALIZADO PARA MEJOR DISEÑO Y RESPONSIVE ---
+st.markdown("""
+<style>
+    /* Mejoras generales de diseño */
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    
+    /* Mejor espaciado en móviles */
+    @media (max-width: 768px) {
+        .main .block-container {
+            padding-left: 1rem;
+            padding-right: 1rem;
+            padding-top: 1rem;
+        }
+        
+        /* Sidebar más compacta en móvil */
+        .css-1d391kg {
+            padding-top: 1rem;
+        }
+        
+        /* Mejorar inputs en móvil */
+        .stTextInput input, .stNumberInput input, .stSelectbox select {
+            font-size: 16px !important; /* Evita zoom en iOS */
+        }
+        
+        /* Mejorar botones */
+        .stButton > button {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Tabs más accesibles */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        /* Métricas más compactas */
+        .stMetric {
+            padding: 0.5rem;
+        }
+    }
+    
+    /* Mejorar el date input para móviles */
+    @media (max-width: 768px) {
+        /* Asegurar que el calendario sea visible y no se oculte */
+        div[data-baseweb="popover"] {
+            z-index: 9999 !important;
+            position: fixed !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            max-width: 90vw !important;
+            max-height: 90vh !important;
+            overflow-y: auto !important;
+        }
+        
+        /* Input de fecha más grande en móvil para evitar zoom */
+        .stDateInput > div > div > input {
+            font-size: 16px !important;
+            padding: 0.75rem !important;
+            min-height: 48px !important;
+        }
+        
+        /* Calendario más grande y accesible */
+        .rdp {
+            font-size: 1.1rem !important;
+        }
+        
+        /* Asegurar que el sidebar no se oculte al hacer scroll */
+        section[data-testid="stSidebar"] {
+            position: sticky !important;
+            top: 0 !important;
+            height: 100vh !important;
+            overflow-y: auto !important;
+        }
+    }
+    
+    /* Mejorar diseño del chat */
+    .stChatMessage {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Mejorar formularios */
+    .stForm {
+        border: 1px solid rgba(250, 250, 250, 0.2);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        background: rgba(255, 255, 255, 0.03);
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    /* Mejoras visuales en la sidebar */
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #1e1e2e 0%, #2a2a3e 100%);
+    }
+    
+    /* Botones más atractivos */
+    .stButton > button {
+        border-radius: 0.5rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    /* Inputs mejorados */
+    .stTextInput > div > div > input,
+    .stNumberInput > div > div > input,
+    .stSelectbox > div > div > select {
+        border-radius: 0.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        transition: all 0.3s ease;
+    }
+    
+    .stTextInput > div > div > input:focus,
+    .stNumberInput > div > div > input:focus,
+    .stSelectbox > div > div > select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    /* Radio buttons mejorados */
+    .stRadio > div {
+        gap: 1rem;
+    }
+    
+    .stRadio > div > label {
+        border-radius: 0.5rem;
+        padding: 0.5rem 1rem;
+        transition: all 0.3s ease;
+    }
+    
+    /* Tabs más atractivos */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 0.5rem 0.5rem 0 0;
+        padding: 0.75rem 1.5rem;
+    }
+    
+    /* Mejorar sidebar en móvil */
+    @media (max-width: 768px) {
+        section[data-testid="stSidebar"] {
+            min-width: 100% !important;
+            max-width: 100% !important;
+        }
+    }
+    
+    /* Animaciones sutiles */
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        transition: all 0.3s ease;
+    }
+    
+    /* Mejorar espaciado entre elementos */
+    .element-container {
+        margin-bottom: 1rem;
+    }
+    
+    /* Mejorar contenedores principales */
+    .main .block-container {
+        max-width: 1200px;
+    }
+    
+    /* Headers más atractivos */
+    h1 {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-weight: 700;
+    }
+    
+    h2, h3 {
+        color: #667eea;
+        font-weight: 600;
+    }
+    
+    /* Mejorar info boxes */
+    .stInfo {
+        border-left: 4px solid #667eea;
+        border-radius: 0.5rem;
+    }
+    
+    .stSuccess {
+        border-left: 4px solid #00cc96;
+        border-radius: 0.5rem;
+    }
+    
+    .stWarning {
+        border-left: 4px solid #ff9800;
+        border-radius: 0.5rem;
+    }
+    
+    .stError {
+        border-left: 4px solid #ef553b;
+        border-radius: 0.5rem;
+    }
+    
+    /* Scrollbar personalizado */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: rgba(102, 126, 234, 0.5);
+        border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgba(102, 126, 234, 0.7);
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # --- CONSTANTES ---
 FILE_NAME = "finanzas.csv"
 CAT_FILE_NAME = "categorias.csv"
@@ -717,6 +945,8 @@ if 'simulacion' not in st.session_state:
     st.session_state.simulacion = []
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
+if 'chat_input_key' not in st.session_state:
+    st.session_state.chat_input_key = 0
 
 # --- CARGA ---
 df = load_data()
@@ -746,9 +976,9 @@ with st.sidebar.form("form_reg", clear_on_submit=True):
     tipo = st.radio("Tipo", ["Ingreso", "Gasto"], index=1, horizontal=True)
     es_conjunto = st.checkbox("👥 Gasto Conjunto (Div / 2)")
     
-    # Usar key único para evitar que cambios en fecha causen submit
+    # Input de fecha mejorado para móviles
     fecha = st.date_input(
-        "Fecha", 
+        "📅 Fecha", 
         datetime.now(), 
         format="DD/MM/YYYY",
         key="fecha_input_form"
@@ -906,7 +1136,7 @@ else:
             st.markdown("**💭 Haz una pregunta sobre tus finanzas:**")
             pregunta = st.text_input(
                 "Ejemplos: '¿Cuánto he gastado en comida este mes?', '¿Cuál es mi categoría con más gastos?', '¿Cómo van mis presupuestos?'",
-                key="pregunta_gemini",
+                key=f"pregunta_gemini_{st.session_state.chat_input_key}",
                 label_visibility="collapsed"
             )
             
@@ -926,11 +1156,14 @@ else:
                                 'tipo': 'asistente',
                                 'contenido': respuesta
                             })
+                            # Incrementar key para limpiar el campo
+                            st.session_state.chat_input_key += 1
                         st.rerun()
             
             with col_clear:
                 if st.button("🗑️ Limpiar Chat", use_container_width=True):
                     st.session_state.chat_history = []
+                    st.session_state.chat_input_key += 1  # También limpiar el input
                     st.rerun()
             
             # Sugerencias de preguntas
