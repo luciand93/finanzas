@@ -749,7 +749,47 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# JavaScript eliminado - El calendario funciona correctamente por defecto
+# JavaScript para prevenir teclado en campo fecha
+st.components.v1.html("""
+<script>
+(function() {
+    function preventKeyboardOnDateInput() {
+        const dateInputs = document.querySelectorAll('.stDateInput input');
+        dateInputs.forEach(input => {
+            if (!input.hasAttribute('data-no-keyboard')) {
+                input.setAttribute('readonly', 'readonly');
+                input.setAttribute('inputmode', 'none');
+                input.setAttribute('data-no-keyboard', 'true');
+                
+                // Prevenir que el focus abra el teclado
+                input.addEventListener('focus', function(e) {
+                    e.preventDefault();
+                    setTimeout(() => {
+                        if (document.activeElement === this) {
+                            this.blur();
+                        }
+                    }, 0);
+                }, true);
+            }
+        });
+    }
+    
+    // Ejecutar al cargar
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', preventKeyboardOnDateInput);
+    } else {
+        preventKeyboardOnDateInput();
+    }
+    
+    // Observar cambios en el DOM
+    const observer = new MutationObserver(preventKeyboardOnDateInput);
+    observer.observe(document.body, { childList: true, subtree: true });
+    
+    // Ejecutar periódicamente
+    setInterval(preventKeyboardOnDateInput, 500);
+})();
+</script>
+""", height=0)
 
 # --- CONSTANTES ---
 FILE_NAME = "finanzas.csv"
