@@ -487,35 +487,43 @@ st.markdown("""
         background: rgba(102, 126, 234, 0.7);
     }
     
-    /* Estilos para el modal/popup */
+    /* Estilos para el modal/popup - Arreglado para no bloquear */
     .modal-overlay {
         display: none;
         position: fixed;
         top: 0;
         left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        z-index: 10000;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.75);
+        z-index: 99999 !important;
         justify-content: center;
         align-items: center;
+        overflow: hidden;
     }
     
     .modal-overlay.show {
-        display: flex;
+        display: flex !important;
     }
     
     .modal-content {
-        background: var(--background-color);
+        background: var(--background-color) !important;
         border-radius: 1rem;
         padding: 2rem;
         max-width: 600px;
         width: 90%;
         max-height: 90vh;
         overflow-y: auto;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        overflow-x: hidden;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.5);
         position: relative;
         margin: auto;
+        z-index: 100000 !important;
+    }
+    
+    /* Prevenir que el body se bloquee cuando el modal está abierto */
+    body.modal-open {
+        overflow: hidden;
     }
     
     @media (max-width: 768px) {
@@ -565,6 +573,145 @@ st.markdown("""
     .modal-close:hover {
         background: rgba(255, 255, 255, 0.2);
         transform: rotate(90deg);
+    }
+    
+    /* Menú hamburger atractivo */
+    .hamburger-menu {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .hamburger-btn {
+        background: rgba(102, 126, 234, 0.1);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.3s ease;
+        color: #667eea;
+        font-weight: 500;
+    }
+    
+    .hamburger-btn:hover {
+        background: rgba(102, 126, 234, 0.2);
+        border-color: rgba(102, 126, 234, 0.5);
+        transform: translateY(-1px);
+    }
+    
+    .hamburger-icon {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 20px;
+    }
+    
+    .hamburger-icon span {
+        display: block;
+        height: 2px;
+        width: 100%;
+        background: currentColor;
+        border-radius: 2px;
+        transition: all 0.3s ease;
+    }
+    
+    .hamburger-menu.active .hamburger-icon span:nth-child(1) {
+        transform: rotate(45deg) translate(5px, 5px);
+    }
+    
+    .hamburger-menu.active .hamburger-icon span:nth-child(2) {
+        opacity: 0;
+    }
+    
+    .hamburger-menu.active .hamburger-icon span:nth-child(3) {
+        transform: rotate(-45deg) translate(7px, -6px);
+    }
+    
+    .menu-dropdown {
+        display: none;
+        position: absolute;
+        top: calc(100% + 0.5rem);
+        right: 0;
+        background: var(--background-color);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 0.75rem;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        min-width: 250px;
+        z-index: 1000;
+        overflow: hidden;
+        animation: slideDown 0.3s ease;
+    }
+    
+    .hamburger-menu.active .menu-dropdown {
+        display: block;
+    }
+    
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .menu-item {
+        padding: 0.75rem 1.25rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .menu-item:last-child {
+        border-bottom: none;
+    }
+    
+    .menu-item:hover {
+        background: rgba(102, 126, 234, 0.1);
+        padding-left: 1.5rem;
+    }
+    
+    .menu-item.active {
+        background: rgba(102, 126, 234, 0.2);
+        border-left: 3px solid #667eea;
+    }
+    
+    /* Botón de nuevo movimiento más pequeño e intuitivo */
+    .btn-nuevo-mov {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 0.5rem;
+        padding: 0.5rem 1rem;
+        color: white;
+        font-weight: 500;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+    
+    .btn-nuevo-mov:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    @media (max-width: 768px) {
+        .menu-dropdown {
+            min-width: 200px;
+            right: -0.5rem;
+        }
+        
+        .menu-item {
+            padding: 0.625rem 1rem;
+            font-size: 0.9rem;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -1357,13 +1504,12 @@ lista_cats = load_categories()
 
 # --- SIDEBAR ---
 st.sidebar.header("📝 Gestión de Movimientos")
-modo_simulacion = st.sidebar.checkbox("🧪 Modo Simulación", help="Prueba gastos sin guardar")
 
-color = "orange" if modo_simulacion else "green"
-txt = "MODO ESCENARIO" if modo_simulacion else "MODO REGISTRO"
-st.sidebar.markdown(f":{color}[**{txt}**]")
+# El modo simulación ahora está en el formulario
+if 'modo_simulacion' not in st.session_state:
+    st.session_state.modo_simulacion = False
 
-if modo_simulacion and len(st.session_state.simulacion) > 0:
+if st.session_state.modo_simulacion and len(st.session_state.simulacion) > 0:
     st.sidebar.info(f"Items simulados: {len(st.session_state.simulacion)}")
 
 # RECORDATORIOS DE GASTOS RECURRENTES
@@ -1378,25 +1524,54 @@ if recordatorios:
 
 # Modal/Popup para el formulario
 if st.session_state.show_modal:
-    with st.container():
-        # Overlay del modal
-        st.markdown("""
-        <div id="modal-overlay" class="modal-overlay show">
-            <div class="modal-content">
-        """, unsafe_allow_html=True)
-        
-        st.markdown("### 📝 Nuevo Movimiento")
+    # Usar un contenedor con estilo de modal
+    st.markdown("""
+    <style>
+    .modal-wrapper {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 99999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 1rem;
+    }
+    .modal-inner {
+        background: var(--background-color);
+        border-radius: 1rem;
+        padding: 2rem;
+        max-width: 600px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        position: relative;
+    }
+    </style>
+    <div class="modal-wrapper">
+        <div class="modal-inner">
+    """, unsafe_allow_html=True)
+    
+    st.markdown("### 📝 Nuevo Movimiento")
         
         # Formulario inteligente y adaptativo dentro del modal
         with st.form("form_reg_modal", clear_on_submit=True):
-            # Primera fila: Tipo y Gasto Conjunto
-            col_tipo, col_conjunto = st.columns([2, 1])
+            # Primera fila: Modo Simulación y Tipo
+            col_sim, col_tipo = st.columns([1, 2])
+            with col_sim:
+                modo_simulacion = st.checkbox("🧪 Simulación", help="Prueba sin guardar", value=st.session_state.modo_simulacion, key="modo_sim_modal")
+                st.session_state.modo_simulacion = modo_simulacion
             with col_tipo:
                 tipo = st.radio("Tipo", ["Ingreso", "Gasto"], index=1, horizontal=True)
-            with col_conjunto:
-                es_conjunto = st.checkbox("👥 Conjunto", help="Dividir entre 2")
             
-            # Segunda fila: Fecha y Categoría
+            # Segunda fila: Gasto Conjunto
+            es_conjunto = st.checkbox("👥 Gasto Conjunto (Dividir entre 2)", key="es_conjunto_modal")
+            
+            # Tercera fila: Fecha y Categoría
             col_fecha, col_cat = st.columns(2)
             with col_fecha:
                 fecha = st.date_input(
@@ -1408,10 +1583,10 @@ if st.session_state.show_modal:
             with col_cat:
                 cat = st.selectbox("Categoría", lista_cats, key="cat_select_modal")
             
-            # Tercera fila: Concepto (ancho completo)
+            # Cuarta fila: Concepto (ancho completo)
             con = st.text_input("Concepto", key="concepto_input_modal", placeholder="Descripción del movimiento")
             
-            # Cuarta fila: Importe y Frecuencia
+            # Quinta fila: Importe y Frecuencia
             col_imp, col_fre = st.columns([2, 1])
             with col_imp:
                 imp_input = st.number_input(
@@ -1474,45 +1649,60 @@ if st.session_state.show_modal:
                 else: 
                     st.error("Faltan datos")
         
-        st.markdown("</div></div>", unsafe_allow_html=True)
-    
-    # Botón para cerrar el modal (fuera del form)
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
+        st.markdown("---")
+        # Botón para cerrar el modal (fuera del form)
         if st.button("❌ Cerrar", use_container_width=True, key="close_modal_btn"):
             st.session_state.show_modal = False
             st.rerun()
+    
+    st.markdown("</div></div>", unsafe_allow_html=True)
 
-# --- HEADER SUPERIOR CON BOTÓN DE ALTA ---
+# --- HEADER SUPERIOR CON BOTÓN DE ALTA Y MENÚ HAMBURGER ---
 st.markdown('<div class="top-header">', unsafe_allow_html=True)
-col_header1, col_header2, col_header3 = st.columns([2, 3, 1])
+col_header1, col_header2, col_header3 = st.columns([3, 1, 1])
 with col_header1:
-    st.markdown("### 🚀 Finanzas Personales")
-with col_header2:
-    # Menú desplegable para secciones
-    opciones_menu = {
-        "🤖 Asesor": "Asesor",
-        "📊 Gráficos": "Gráficos",
-        "🔍 Tabla": "Tabla",
-        "🔄 Recurrentes": "Recurrentes",
-        "📝 Editar": "Editar",
-        "📤 Exportar/Importar": "Exportar",
-        "💰 Presupuestos": "Presupuestos",
-        "⚙️ Config": "Config"
+    # Título dinámico según sección
+    titulos_secciones = {
+        "🤖 Asesor": "🤖 Asesor Financiero",
+        "📊 Gráficos": "📊 Visualizaciones",
+        "🔍 Tabla": "🔍 Tabla de Movimientos",
+        "🔄 Recurrentes": "🔄 Gastos Recurrentes",
+        "📝 Editar": "📝 Editar Movimientos",
+        "📤 Exportar/Importar": "📤 Exportar / Importar",
+        "💰 Presupuestos": "💰 Presupuestos",
+        "⚙️ Config": "⚙️ Configuración"
     }
-    seccion_seleccionada = st.selectbox(
-        "Navegación",
-        options=list(opciones_menu.keys()),
-        index=list(opciones_menu.keys()).index(st.session_state.seccion_actual) if st.session_state.seccion_actual in opciones_menu.keys() else 0,
-        key="menu_navegacion",
-        label_visibility="collapsed"
-    )
-    st.session_state.seccion_actual = seccion_seleccionada
-with col_header3:
-    if st.button("➕ Nuevo Movimiento", type="primary", use_container_width=True, key="btn_alta_header"):
+    titulo_actual = titulos_secciones.get(st.session_state.seccion_actual, "🚀 Finanzas Personales")
+    st.markdown(f"### {titulo_actual}")
+with col_header2:
+    # Botón de nuevo movimiento más pequeño e intuitivo
+    if st.button("➕ Nuevo", type="primary", use_container_width=True, key="btn_alta_header"):
         st.session_state.show_modal = True
         st.rerun()
+with col_header3:
+    # Menú hamburger usando popover de Streamlit
+    opciones_menu = ["🤖 Asesor", "📊 Gráficos", "🔍 Tabla", "🔄 Recurrentes", "📝 Editar", "📤 Exportar/Importar", "💰 Presupuestos", "⚙️ Config"]
+    
+    with st.popover("☰ Menú", use_container_width=True):
+        st.markdown("**Navegación:**")
+        for opcion in opciones_menu:
+            if st.button(opcion, key=f"menu_{opcion}", use_container_width=True):
+                st.session_state.seccion_actual = opcion
+                st.rerun()
+
 st.markdown('</div>', unsafe_allow_html=True)
+
+# JavaScript para recibir mensajes del menú
+st.components.v1.html("""
+<script>
+    window.addEventListener('message', function(event) {
+        if (event.data.type === 'selectSection') {
+            // Esto se manejará con Streamlit
+            window.parent.postMessage({type: 'streamlit', section: event.data.section}, '*');
+        }
+    });
+</script>
+""", height=0, key="menu_js")
 
 # --- DASHBOARD ---
 if df.empty: 
