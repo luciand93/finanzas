@@ -202,11 +202,22 @@ st.markdown("""
             box-shadow: 0 8px 32px rgba(0,0,0,0.3) !important;
         }
         
-        /* Input de fecha optimizado para móvil */
+        /* Input de fecha optimizado para móvil - SOLO LECTURA para evitar teclado */
         .stDateInput > div > div > input {
             font-size: 16px !important;
             padding: 0.625rem 0.75rem !important;
             min-height: 44px !important;
+            cursor: pointer !important;
+            -webkit-user-select: none !important;
+            user-select: none !important;
+        }
+        
+        /* Prevenir que el input de fecha abra el teclado */
+        .stDateInput input[readonly],
+        .stDateInput input {
+            readonly: true !important;
+            -webkit-user-select: none !important;
+            user-select: none !important;
         }
         
         /* Calendario más accesible en móvil */
@@ -230,6 +241,12 @@ st.markdown("""
         button[data-testid="baseButton-header"] {
             min-width: 44px !important;
             min-height: 44px !important;
+        }
+        
+        /* Prevenir que el formulario se oculte al seleccionar fecha */
+        form[data-testid="stForm"] {
+            position: relative !important;
+            z-index: 1 !important;
         }
     }
     
@@ -396,6 +413,40 @@ st.markdown("""
         background: rgba(102, 126, 234, 0.7);
     }
 </style>
+
+<script>
+    // Script para prevenir que el teclado se abra y el formulario se oculte
+    document.addEventListener('DOMContentLoaded', function() {
+        // Prevenir que el input de fecha abra el teclado en móvil
+        const dateInputs = document.querySelectorAll('.stDateInput input');
+        dateInputs.forEach(input => {
+            input.setAttribute('readonly', 'readonly');
+            input.setAttribute('inputmode', 'none');
+            
+            // Prevenir focus que abriría el teclado
+            input.addEventListener('focus', function(e) {
+                e.preventDefault();
+                this.blur();
+            });
+            
+            // Prevenir clicks que puedan abrir el teclado
+            input.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+            }, {passive: false});
+        });
+        
+        // Prevenir que el formulario se oculte al hacer clic en el calendario
+        document.addEventListener('click', function(e) {
+            // Si el clic es en el calendario o sus elementos
+            if (e.target.closest('[data-baseweb="popover"]') || 
+                e.target.closest('.rdp') || 
+                e.target.closest('.rdp-day')) {
+                // Prevenir que se cierre el formulario
+                e.stopPropagation();
+            }
+        }, true);
+    });
+</script>
 """, unsafe_allow_html=True)
 
 # --- CONSTANTES ---
