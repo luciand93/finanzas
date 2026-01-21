@@ -1619,16 +1619,9 @@ with col_header_center:
         st.rerun()
 
 with col_header_right:
-    # Botón hamburger para abrir menú lateral
-    if st.button("☰", key="btn_hamburger", help="Menú"):
-        st.session_state.menu_abierto = not st.session_state.menu_abierto
-        st.rerun()
-
-# Menú lateral usando popover de Streamlit (más robusto)
-opciones_menu = ["🤖 Asesor", "📊 Gráficos", "🔍 Tabla", "🔄 Recurrentes", "📝 Editar", "📤 Exportar/Importar", "💰 Presupuestos", "⚙️ Config"]
-
-# Usar popover que se maneja automáticamente
-with col_header_right:
+    # Menú hamburger usando popover de Streamlit (más robusto, no bloquea)
+    opciones_menu = ["🤖 Asesor", "📊 Gráficos", "🔍 Tabla", "🔄 Recurrentes", "📝 Editar", "📤 Exportar/Importar", "💰 Presupuestos", "⚙️ Config"]
+    
     with st.popover("☰", use_container_width=True):
         st.markdown("### Navegación")
         
