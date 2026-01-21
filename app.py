@@ -55,14 +55,73 @@ GEMINI_ENABLED = GEMINI_AVAILABLE and GEMINI_API_KEY != ''
 GEMINI_MODEL = None
 
 # Inicializar Gemini si está disponible
-if GEMINI_ENABLED:
+def inicializar_gemini():
+    """Inicializa el modelo de Gemini, probando diferentes opciones"""
+    global GEMINI_MODEL, GEMINI_ENABLED
+    
+    if not GEMINI_ENABLED:
+        return None
+    
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        # Usar gemini-pro que es el modelo más estable y ampliamente disponible
-        GEMINI_MODEL = genai.GenerativeModel('gemini-pro')
+        
+        # Intentar obtener la lista de modelos disponibles
+        try:
+            modelos_disponibles = [m.name.split('/')[-1] for m in genai.list_models() 
+                                  if 'generateContent' in m.supported_generation_methods]
+            
+            # Priorizar modelos con "-latest" o modelos comunes
+            modelos_prioridad = [
+                'gemini-1.5-flash-latest',
+                'gemini-1.5-pro-latest',
+                'gemini-1.5-flash',
+                'gemini-1.5-pro',
+                'gemini-pro',
+                'models/gemini-pro',
+                'models/gemini-1.5-flash'
+            ]
+            
+            modelo_a_usar = None
+            
+            # Buscar primero en los modelos de prioridad
+            for modelo_pref in modelos_prioridad:
+                nombre_corto = modelo_pref.replace('models/', '')
+                if nombre_corto in modelos_disponibles:
+                    modelo_a_usar = nombre_corto
+                    break
+            
+            # Si no encontramos uno de prioridad, usar el primero disponible
+            if not modelo_a_usar and modelos_disponibles:
+                modelo_a_usar = modelos_disponibles[0]
+            
+            if modelo_a_usar:
+                GEMINI_MODEL = genai.GenerativeModel(modelo_a_usar)
+                return GEMINI_MODEL
+            else:
+                GEMINI_ENABLED = False
+                return None
+                
+        except Exception as e:
+            # Si falla listar modelos, intentar con modelos comunes directamente
+            modelos_comunes = ['gemini-pro', 'gemini-1.5-flash', 'gemini-1.5-pro']
+            for modelo_nombre in modelos_comunes:
+                try:
+                    GEMINI_MODEL = genai.GenerativeModel(modelo_nombre)
+                    return GEMINI_MODEL
+                except:
+                    continue
+            
+            GEMINI_ENABLED = False
+            return None
+            
     except Exception as e:
         GEMINI_ENABLED = False
         GEMINI_MODEL = None
+        return None
+
+# Inicializar al cargar el módulo
+if GEMINI_ENABLED:
+    inicializar_gemini()
 
 # Nombres de las hojas en Google Sheets
 SHEET_FINANZAS = "Finanzas"
@@ -618,8 +677,14 @@ GASTOS POR CATEGORÍA (MES ACTUAL):
 
 def chat_con_gemini(pregunta, contexto_financiero, historial_chat=None):
     """Envía una pregunta a Gemini con el contexto financiero"""
-    if not GEMINI_ENABLED or GEMINI_MODEL is None:
+    if not GEMINI_ENABLED:
         return "Gemini no está configurado. Por favor, configura GEMINI_API_KEY en las variables de entorno."
+    
+    # Asegurar que el modelo esté inicializado
+    if GEMINI_MODEL is None:
+        inicializar_gemini()
+        if GEMINI_MODEL is None:
+            return "Error: No se pudo inicializar un modelo de Gemini compatible. Verifica tu API key y que tengas acceso a los modelos."
     
     try:
         # Construir el prompt con contexto
