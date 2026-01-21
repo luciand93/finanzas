@@ -1507,7 +1507,7 @@ if st.session_state.show_modal:
             modo_simulacion = st.checkbox("🧪 Simulación", help="Prueba sin guardar", value=st.session_state.modo_simulacion, key="modo_sim_modal")
             st.session_state.modo_simulacion = modo_simulacion
         with col_tipo:
-            tipo = st.radio("Tipo", ["Ingreso", "Gasto"], index=1, horizontal=True)
+    tipo = st.radio("Tipo", ["Ingreso", "Gasto"], index=1, horizontal=True)
         
         # Segunda fila: Gasto Conjunto
         es_conjunto = st.checkbox("👥 Gasto Conjunto (Dividir entre 2)", key="es_conjunto_modal")
@@ -1515,10 +1515,10 @@ if st.session_state.show_modal:
         # Tercera fila: Fecha y Categoría
         col_fecha, col_cat = st.columns(2)
         with col_fecha:
-            fecha = st.date_input(
+    fecha = st.date_input(
                 "📅 Fecha", 
-                datetime.now(), 
-                format="DD/MM/YYYY",
+        datetime.now(), 
+        format="DD/MM/YYYY",
                 key="fecha_input_modal"
             )
         with col_cat:
@@ -1530,28 +1530,28 @@ if st.session_state.show_modal:
         # Quinta fila: Importe y Frecuencia (Frecuencia visible antes del botón)
         col_imp, col_fre = st.columns([2, 1])
         with col_imp:
-            imp_input = st.number_input(
-                "Importe Total (€)", 
-                min_value=0.0, 
-                step=0.01, 
-                format="%.2f",
+    imp_input = st.number_input(
+        "Importe Total (€)", 
+        min_value=0.0, 
+        step=0.01, 
+        format="%.2f",
                 key="importe_input_modal"
-            )
+    )
         with col_fre:
-            fre = st.selectbox(
-                "Frecuencia", 
+    fre = st.selectbox(
+        "Frecuencia", 
                 ["Puntual", "Mensual", "Anual"],
                 key="frecuencia_select_modal"
-            )
-        
+    )
+    
         # Mostrar cálculo si es conjunto
-        imp_real = imp_input / 2 if es_conjunto and tipo == "Gasto" else imp_input
-        if es_conjunto and tipo == "Gasto" and imp_input > 0:
+    imp_real = imp_input / 2 if es_conjunto and tipo == "Gasto" else imp_input
+    if es_conjunto and tipo == "Gasto" and imp_input > 0:
             st.info(f"ℹ️ Se registrarán **{imp_real:.2f} €** (mitad del total)")
 
         # Botones de acción
-        btn = "➕ Añadir a Simulación" if modo_simulacion else "💾 Guardar"
-        
+    btn = "➕ Añadir a Simulación" if modo_simulacion else "💾 Guardar"
+    
         col_submit, col_cancel = st.columns([2, 1])
         with col_submit:
             submitted = st.form_submit_button(btn, type="primary", use_container_width=True)
@@ -1559,34 +1559,34 @@ if st.session_state.show_modal:
             if st.form_submit_button("❌ Cancelar", use_container_width=True):
                 st.session_state.show_modal = False
                 st.rerun()
-        
-        if submitted:
-            if imp_input > 0 and con:
-                impacto = imp_real / 12 if fre == "Anual" else imp_real
-                
-                if modo_simulacion:
-                    # LÓGICA DE SIMULACIÓN CORREGIDA
-                    st.session_state.simulacion.append({
-                        "Fecha": fecha.strftime("%d/%m/%Y"), 
-                        "Tipo": tipo, 
-                        "Concepto": f"{con} (Sim)",
-                        "Importe": imp_real, 
-                        "Frecuencia": fre, 
-                        "Impacto_Mensual": impacto, 
-                        "Es_Conjunto": es_conjunto
-                    })
+    
+    if submitted:
+        if imp_input > 0 and con:
+            impacto = imp_real / 12 if fre == "Anual" else imp_real
+            
+            if modo_simulacion:
+                # LÓGICA DE SIMULACIÓN CORREGIDA
+                st.session_state.simulacion.append({
+                    "Fecha": fecha.strftime("%d/%m/%Y"), 
+                    "Tipo": tipo, 
+                    "Concepto": f"{con} (Sim)",
+                    "Importe": imp_real, 
+                    "Frecuencia": fre, 
+                    "Impacto_Mensual": impacto, 
+                    "Es_Conjunto": es_conjunto
+                })
                     st.session_state.show_modal = False
-                    st.success("Añadido a simulación")
-                    st.rerun()
-                else:
-                    # LÓGICA DE GUARDADO REAL
-                    new_row = pd.DataFrame([[pd.to_datetime(fecha), tipo, cat, con, imp_real, fre, impacto, es_conjunto]], columns=COLUMNS)
-                    df = pd.concat([df, new_row], ignore_index=True)
-                    save_all_data(df)
-                    registrar_cambio("Alta", f"Nuevo movimiento: {con} ({imp_real:.2f} €)")
+                st.success("Añadido a simulación")
+                st.rerun()
+            else:
+                # LÓGICA DE GUARDADO REAL
+                new_row = pd.DataFrame([[pd.to_datetime(fecha), tipo, cat, con, imp_real, fre, impacto, es_conjunto]], columns=COLUMNS)
+                df = pd.concat([df, new_row], ignore_index=True)
+                save_all_data(df)
+                registrar_cambio("Alta", f"Nuevo movimiento: {con} ({imp_real:.2f} €)")
                     st.session_state.show_modal = False
-                    st.success("Guardado")
-                    st.rerun()
+                st.success("Guardado")
+                st.rerun()
             else:
                 st.error("Faltan datos")
     
@@ -1619,17 +1619,80 @@ with col_header_center:
         st.rerun()
 
 with col_header_right:
-    # Menú hamburger usando popover de Streamlit (más robusto, no bloquea)
+    # Menú hamburger - Usar estado para controlar visibilidad
+    if 'menu_abierto' not in st.session_state:
+        st.session_state.menu_abierto = False
+    
     opciones_menu = ["🤖 Asesor", "📊 Gráficos", "🔍 Tabla", "🔄 Recurrentes", "📝 Editar", "📤 Exportar/Importar", "💰 Presupuestos", "⚙️ Config"]
     
-    with st.popover("☰", use_container_width=True):
-        st.markdown("### Navegación")
-        
-        # Botones del menú
-        for opcion in opciones_menu:
-            if st.button(opcion, use_container_width=True, key=f"menu_btn_{opcion}"):
-                st.session_state.seccion_actual = opcion
-                st.rerun()
+    # Botón para abrir/cerrar menú
+    if st.button("☰", key="btn_hamburger", help="Menú"):
+        st.session_state.menu_abierto = not st.session_state.menu_abierto
+        st.rerun()
+
+# Menú lateral derecho con CSS (sin bloquear la app)
+if st.session_state.menu_abierto:
+    st.markdown("""
+    <style>
+    .side-menu-overlay {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.3);
+        z-index: 99998;
+        pointer-events: auto;
+    }
+    .side-menu-right {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 280px;
+        height: 100%;
+        background: var(--background-color);
+        box-shadow: -2px 0 10px rgba(0,0,0,0.3);
+        z-index: 99999;
+        padding: 1rem;
+        overflow-y: auto;
+        animation: slideInRight 0.3s ease;
+    }
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+        }
+        to {
+            transform: translateX(0);
+        }
+    }
+    </style>
+    <div class="side-menu-overlay" onclick="closeMenu()"></div>
+    <div class="side-menu-right">
+        <h3 style="margin-top: 0;">Navegación</h3>
+        <button onclick="closeMenu()" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; cursor: pointer;">✕</button>
+    </div>
+    <script>
+    function closeMenu() {
+        window.parent.postMessage({type: 'closeMenu'}, '*');
+    }
+    </script>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("### Navegación")
+    
+    # Botón para cerrar menú
+    if st.button("✕ Cerrar", use_container_width=True, key="btn_cerrar_menu"):
+        st.session_state.menu_abierto = False
+        st.rerun()
+    
+    st.markdown("---")
+    
+    # Botones del menú
+    for opcion in opciones_menu:
+        if st.button(opcion, use_container_width=True, key=f"menu_btn_{opcion}"):
+            st.session_state.seccion_actual = opcion
+            st.session_state.menu_abierto = False  # Cerrar menú al seleccionar
+            st.rerun()
 
 # --- DASHBOARD ---
 if df.empty: 
