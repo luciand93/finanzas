@@ -1522,41 +1522,20 @@ if recordatorios:
 
 # El botón de alta está ahora en el header superior
 
-# Modal/Popup para el formulario
+# Modal/Popup para el formulario - Usando contenedor destacado
 if st.session_state.show_modal:
-    # Usar un contenedor con estilo de modal
-    st.markdown("""
-    <style>
-    .modal-wrapper {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        z-index: 99999;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        padding: 1rem;
-    }
-    .modal-inner {
-        background: var(--background-color);
-        border-radius: 1rem;
-        padding: 2rem;
-        max-width: 600px;
-        width: 100%;
-        max-height: 90vh;
-        overflow-y: auto;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-        position: relative;
-    }
-    </style>
-    <div class="modal-wrapper">
-        <div class="modal-inner">
-    """, unsafe_allow_html=True)
-    
-    st.markdown("### 📝 Nuevo Movimiento")
+    # Contenedor destacado para el formulario
+    with st.container():
+        st.markdown("---")
+        col_titulo, col_cerrar = st.columns([4, 1])
+        with col_titulo:
+            st.markdown("### 📝 Nuevo Movimiento")
+        with col_cerrar:
+            if st.button("❌", key="btn_cerrar_modal", help="Cerrar"):
+                st.session_state.show_modal = False
+                st.rerun()
+        
+        st.markdown("---")
         
         # Formulario inteligente y adaptativo dentro del modal
         with st.form("form_reg_modal", clear_on_submit=True):
@@ -1654,8 +1633,6 @@ if st.session_state.show_modal:
         if st.button("❌ Cerrar", use_container_width=True, key="close_modal_btn"):
             st.session_state.show_modal = False
             st.rerun()
-    
-    st.markdown("</div></div>", unsafe_allow_html=True)
 
 # --- HEADER SUPERIOR CON BOTÓN DE ALTA Y MENÚ HAMBURGER ---
 st.markdown('<div class="top-header">', unsafe_allow_html=True)
