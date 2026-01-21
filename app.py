@@ -1587,7 +1587,7 @@ if st.session_state.show_modal:
                     st.session_state.show_modal = False
                     st.success("Guardado")
                     st.rerun()
-            else: 
+            else:
                 st.error("Faltan datos")
     
     # Botón para cerrar el modal (fuera del form)
