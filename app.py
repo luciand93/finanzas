@@ -2362,49 +2362,31 @@ if st.session_state.show_modal:
 # Definir opciones del menú
 opciones_menu = ["🤖 Asesor", "📊 Gráficos", "🔍 Tabla", "🔄 Recurrentes", "📝 Editar", "📤 Exportar/Importar", "💰 Presupuestos", "⚙️ Config"]
 
-# Menú lateral derecho - Usando sidebar temporal
+# Menú lateral derecho - Usando columnas de Streamlit
 if st.session_state.menu_abierto:
-    # CSS para mostrar sidebar desde la derecha
+    # CSS para overlay y menú
     st.markdown("""
     <style>
-    section[data-testid="stSidebar"] {
-        display: block !important;
+    .menu-overlay-custom {
         position: fixed !important;
-        right: 0 !important;
-        left: auto !important;
         top: 0 !important;
-        width: 280px !important;
-        z-index: 99999 !important;
-        animation: slideInRight 0.3s ease !important;
-        box-shadow: -2px 0 10px rgba(0,0,0,0.3) !important;
-    }
-    
-    @keyframes slideInRight {
-        from { transform: translateX(100%); }
-        to { transform: translateX(0); }
-    }
-    
-    /* Overlay oscuro cuando el menú está abierto */
-    .main::before {
-        content: '';
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 99998;
-        animation: fadeIn 0.2s ease;
-    }
-    
-    @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        background: rgba(0,0,0,0.5) !important;
+        z-index: 99998 !important;
     }
     </style>
+    <div class="menu-overlay-custom"></div>
     """, unsafe_allow_html=True)
     
-    with st.sidebar:
+    # Usar columnas: espacio vacío a la izquierda, menú a la derecha
+    col_espacio, col_menu = st.columns([3, 1])
+    
+    with col_espacio:
+        st.empty()  # Espacio vacío
+    
+    with col_menu:
         st.markdown("### Navegación")
         
         # Botón para cerrar menú
@@ -2420,18 +2402,6 @@ if st.session_state.menu_abierto:
                 st.session_state.seccion_actual = opcion
                 st.session_state.menu_abierto = False
                 st.rerun()
-else:
-    # Asegurar que la sidebar esté oculta cuando el menú está cerrado
-    st.markdown("""
-    <style>
-    section[data-testid="stSidebar"] {
-        display: none !important;
-    }
-    .main::before {
-        display: none !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
 # --- DASHBOARD ---
 if df.empty: 
