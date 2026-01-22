@@ -2359,6 +2359,9 @@ if st.session_state.show_modal:
         st.session_state.show_modal = False
         st.rerun()
 
+# Definir opciones del menú
+opciones_menu = ["🤖 Asesor", "📊 Gráficos", "🔍 Tabla", "🔄 Recurrentes", "📝 Editar", "📤 Exportar/Importar", "💰 Presupuestos", "⚙️ Config"]
+
 # Menú lateral derecho - Usando sidebar temporal
 if st.session_state.menu_abierto:
     # CSS para mostrar sidebar desde la derecha
