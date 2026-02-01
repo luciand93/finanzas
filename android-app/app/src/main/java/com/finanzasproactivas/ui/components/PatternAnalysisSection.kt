@@ -10,7 +10,31 @@ import androidx.compose.ui.unit.dp
 import com.finanzasproactivas.ui.theme.*
 
 @Composable
-fun PatternAnalysisSection() {
+fun PatternAnalysisSection(movimientos: List<com.finanzasproactivas.data.model.Movimiento> = emptyList()) {
+    val formato = java.text.NumberFormat.getCurrencyInstance(java.util.Locale("es", "ES"))
+    
+    // Calcular top categorías
+    val topCategorias = movimientos
+        .filter { it.tipo == com.finanzasproactivas.data.model.TipoMovimiento.GASTO }
+        .groupBy { it.categoria }
+        .mapValues { it.value.sumOf { m -> m.importe } }
+        .toList()
+        .sortedByDescending { it.second }
+        .take(5)
+    
+    val totalGastos = topCategorias.sumOf { it.second }
+    
+    // Calcular gastos por día de la semana
+    val gastosPorDia = movimientos
+        .filter { it.tipo == com.finanzasproactivas.data.model.TipoMovimiento.GASTO }
+        .groupBy { 
+            val cal = java.util.Calendar.getInstance()
+            cal.time = it.fecha
+            cal.get(java.util.Calendar.DAY_OF_WEEK)
+        }
+        .mapValues { it.value.sumOf { m -> m.importe } }
+    
+    val maxGastoDia = gastosPorDia.values.maxOrNull() ?: 1.0
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -54,16 +78,22 @@ fun PatternAnalysisSection() {
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Ejemplo de categorías
-                CategoryProgressBar("Restaurantes", 35f)
-                Spacer(modifier = Modifier.height(12.dp))
-                CategoryProgressBar("Transporte", 25f)
-                Spacer(modifier = Modifier.height(12.dp))
-                CategoryProgressBar("Compras", 20f)
-                Spacer(modifier = Modifier.height(12.dp))
-                CategoryProgressBar("Ocio", 15f)
-                Spacer(modifier = Modifier.height(12.dp))
-                CategoryProgressBar("Otros", 5f)
+                // Mostrar top categorías reales
+                if (topCategorias.isEmpty()) {
+                    Text(
+                        text = "No hay datos de gastos disponibles",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                } else {
+                    topCategorias.forEachIndexed { index, (categoria, monto) ->
+                        val porcentaje = if (totalGastos > 0) (monto / totalGastos * 100).toFloat() else 0f
+                        CategoryProgressBar(categoria, porcentaje, formato.format(monto))
+                        if (index < topCategorias.size - 1) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                    }
+                }
             }
         }
         
@@ -93,13 +123,16 @@ fun PatternAnalysisSection() {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    DayBar("L", 60f)
-                    DayBar("M", 80f)
-                    DayBar("X", 70f)
-                    DayBar("J", 90f)
-                    DayBar("V", 100f)
-                    DayBar("S", 120f, isWeekend = true)
-                    DayBar("D", 110f, isWeekend = true)
+                    // Días de la semana: L=2, M=3, X=4, J=5, V=6, S=7, D=1
+                    val dias = listOf(
+                        "L" to 2, "M" to 3, "X" to 4, "J" to 5,
+                        "V" to 6, "S" to 7, "D" to 1
+                    )
+                    dias.forEach { (dia, diaSemana) ->
+                        val gasto = gastosPorDia[diaSemana] ?: 0.0
+                        val altura = (gasto / maxGastoDia * 100).toFloat().coerceIn(0f, 100f)
+                        DayBar(dia, altura, isWeekend = diaSemana >= 7)
+                    }
                 }
             }
         }
@@ -107,7 +140,7 @@ fun PatternAnalysisSection() {
 }
 
 @Composable
-fun CategoryProgressBar(categoria: String, porcentaje: Float) {
+fun CategoryProgressBar(categoria: String, porcentaje: Float, monto: String = "") {
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -119,7 +152,7 @@ fun CategoryProgressBar(categoria: String, porcentaje: Float) {
                 color = TextPrimary
             )
             Text(
-                text = "${porcentaje.toInt()}%",
+                text = if (monto.isNotEmpty()) "$monto (${porcentaje.toInt()}%)" else "${porcentaje.toInt()}%",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextSecondary
             )

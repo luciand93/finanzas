@@ -1,37 +1,29 @@
 package com.finanzasproactivas.data.repository
 
-import com.google.ai.client.generativeai.GenerativeModel
+import com.finanzasproactivas.data.api.RetrofitClient
+import com.finanzasproactivas.data.api.GeminiChatRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/**
+ * Repository para comunicarse con Gemini a través del backend de Vercel
+ * Esto resuelve problemas de restricciones regionales
+ */
 class GeminiRepository {
-    // API Key de Gemini - Configurada aquí
-    // Si quieres cambiarla, modifica esta variable o pasa una diferente al inicializar
-    private val defaultApiKey = "AIzaSyC9H41PE78zHcjuk_8RoC0BafHT67CUusw"
     
-    private var model: GenerativeModel? = null
+    private val apiService = RetrofitClient.apiService
     
     /**
-     * Inicializa el modelo de Gemini con la API key proporcionada o usa la predeterminada
-     * 
-     * @param apiKey API key de Gemini. Si es null o vacía, usa la predeterminada configurada arriba
+     * Ya no es necesario inicializar - el backend maneja la conexión con Gemini
      */
     fun initialize(apiKey: String? = null) {
-        val key = apiKey?.takeIf { it.isNotEmpty() } ?: defaultApiKey
-        try {
-            // Usar el constructor directo de GenerativeModel
-            model = GenerativeModel(
-                modelName = "gemini-pro",
-                apiKey = key
-            )
-        } catch (e: Exception) {
-            // Si falla la inicialización, el modelo quedará null
-            // Se manejará en el método chat()
-        }
+        // Mantenido por compatibilidad pero ya no es necesario
+        // El backend de Vercel maneja la conexión con Gemini
     }
     
     /**
-     * Envía una pregunta a Gemini con el contexto de los datos financieros
+     * Envía una pregunta a Gemini a través del backend de Vercel
+     * Esto resuelve problemas de restricciones regionales
      * 
      * @param pregunta La pregunta del usuario
      * @param contexto Los datos financieros formateados como texto
@@ -39,38 +31,58 @@ class GeminiRepository {
      */
     suspend fun chat(pregunta: String, contexto: String): String = withContext(Dispatchers.IO) {
         try {
-            // Inicializar si no está inicializado
-            if (model == null) {
-                initialize()
-            }
-            
-            // Si aún no hay modelo, retornar error
-            val currentModel = model ?: return@withContext "Error: No se pudo inicializar el modelo de Gemini. Verifica tu API key."
-            
-            // Crear el prompt con el contexto financiero
-            val prompt = """
-                Eres un asistente financiero inteligente y experto. Analiza los siguientes datos financieros del usuario y responde su pregunta de manera clara, útil y profesional.
-                
+            // Crear el mensaje completo con contexto
+            val mensajeCompleto = """
                 DATOS FINANCIEROS DEL USUARIO:
                 $contexto
                 
                 PREGUNTA DEL USUARIO:
                 $pregunta
-                
-                INSTRUCCIONES:
-                - Responde de forma clara y concisa
-                - Proporciona información útil basada en los datos proporcionados
-                - Si no hay suficientes datos, indícalo amablemente
-                - Usa un tono profesional pero amigable
-                - Si es relevante, proporciona recomendaciones prácticas
             """.trimIndent()
             
-            // Generar contenido con Gemini
-            val response = currentModel.generateContent(prompt)
-            response.text ?: "Lo siento, no pude generar una respuesta. Por favor, intenta de nuevo."
+            // Preparar request para el backend
+            val request = GeminiChatRequest(
+                message = mensajeCompleto,
+                context = mapOf(
+                    "app" to "Finanzas Proactivas",
+                    "tipo" to "consulta_financiera"
+                )
+            )
+            
+            // Llamar al backend de Vercel
+            val response = apiService.chatGemini(request)
+            
+            if (response.isSuccessful) {
+                val apiResponse = response.body()
+                if (apiResponse?.success == true) {
+                    apiResponse.data?.response ?: "Lo siento, no pude generar una respuesta."
+                } else {
+                    """
+                    ❌ Error al consultar el asistente IA
+                    
+                    ${apiResponse?.message ?: "Error desconocido"}
+                    
+                    Por favor, intenta de nuevo.
+                    """.trimIndent()
+                }
+            } else {
+                """
+                ❌ Error de conexión con el servidor
+                
+                Código: ${response.code()}
+                
+                Verifica tu conexión a internet y vuelve a intentar.
+                """.trimIndent()
+            }
             
         } catch (e: Exception) {
-            "Error al comunicarse con Gemini: ${e.message ?: "Error desconocido"}"
+            """
+            ❌ Error al comunicarse con el asistente IA
+            
+            Error: ${e.message ?: "Error desconocido"}
+            
+            Verifica tu conexión a internet.
+            """.trimIndent()
         }
     }
 }

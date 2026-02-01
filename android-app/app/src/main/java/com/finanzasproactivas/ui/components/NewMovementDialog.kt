@@ -1,28 +1,51 @@
 package com.finanzasproactivas.ui.components
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.finanzasproactivas.data.model.*
+import com.finanzasproactivas.data.repository.CategoriasRepository
+import kotlinx.coroutines.launch
 import java.util.Date
+import java.util.UUID
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.Calendar
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun NewMovementDialog(
     onDismiss: () -> Unit,
     onSave: (Movimiento) -> Unit
 ) {
-    // Categorías por defecto
-    val categoriasDefault = remember {
-        listOf("Vivienda", "Transporte", "Comida", "Seguros", "Ahorro", "Ingresos", "Otros")
+    val context = LocalContext.current
+    val categoriasRepo = remember { CategoriasRepository(context) }
+    var categoriasDefault by remember { mutableStateOf(categoriasRepo.obtenerCategorias()) }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+    val importeFocusRequester = remember { FocusRequester() }
+    val conceptoFocusRequester = remember { FocusRequester() }
+    
+    // Actualizar categorías cuando cambien
+    LaunchedEffect(Unit) {
+        categoriasDefault = categoriasRepo.obtenerCategorias()
     }
     
     var tipo by remember { mutableStateOf(TipoMovimiento.GASTO) }
@@ -41,7 +64,7 @@ fun NewMovementDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Handle visual
@@ -91,123 +114,240 @@ fun NewMovementDialog(
                     Text("👥 Gasto Conjunto")
                 }
                 
-                // Fecha y Categoría
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+                // Fecha (línea completa)
+                val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+                val calendar = remember { Calendar.getInstance().apply { time = fecha } }
+                
+                val abrirDatePicker = {
+                    keyboardController?.hide()
+                    val datePicker = android.app.DatePickerDialog(
+                        context,
+                        { _, year, month, dayOfMonth ->
+                            calendar.set(year, month, dayOfMonth)
+                            fecha = calendar.time
+                        },
+                        calendar.get(Calendar.YEAR),
+                        calendar.get(Calendar.MONTH),
+                        calendar.get(Calendar.DAY_OF_MONTH)
+                    )
+                    datePicker.show()
+                }
+                
+                Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = dateFormat.format(fecha),
                         onValueChange = {},
                         label = { Text("📅 Fecha") },
                         readOnly = true,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
                         leadingIcon = {
                             Icon(Icons.Default.CalendarToday, null)
+                        },
+                        trailingIcon = {
+                            IconButton(onClick = abrirDatePicker) {
+                                Icon(Icons.Default.CalendarToday, null)
+                            }
                         }
                     )
-                    
-                    Box(modifier = Modifier.weight(1f)) {
-                        OutlinedTextField(
-                            value = categoria,
-                            onValueChange = {},
-                            label = { Text("Categoría") },
-                            readOnly = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            trailingIcon = {
-                                IconButton(onClick = { categoriaExpanded = true }) {
-                                    Icon(Icons.Default.ArrowDropDown, null)
-                                }
+                    // Overlay clickeable sobre todo el campo
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .matchParentSize()
+                            .clickable { abrirDatePicker() }
+                    )
+                }
+                
+                // Categoría (línea completa)
+                val abrirCategoria = {
+                    keyboardController?.hide()
+                    categoriaExpanded = true
+                }
+                
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = categoria,
+                        onValueChange = {},
+                        label = { Text("Categoría") },
+                        readOnly = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        maxLines = 1,
+                        trailingIcon = {
+                            IconButton(onClick = abrirCategoria) {
+                                Icon(Icons.Default.ArrowDropDown, null)
                             }
-                        )
-                        DropdownMenu(
-                            expanded = categoriaExpanded,
-                            onDismissRequest = { categoriaExpanded = false }
-                        ) {
-                            categoriasDefault.forEach { cat ->
-                                DropdownMenuItem(
-                                    text = { Text(cat) },
-                                    onClick = {
-                                        categoria = cat
-                                        categoriaExpanded = false
+                        }
+                    )
+                    // Overlay clickeable sobre todo el campo
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .matchParentSize()
+                            .clickable { abrirCategoria() }
+                    )
+                    DropdownMenu(
+                        expanded = categoriaExpanded,
+                        onDismissRequest = { categoriaExpanded = false }
+                    ) {
+                        categoriasDefault.forEach { cat ->
+                            DropdownMenuItem(
+                                text = { Text(cat, maxLines = 1) },
+                                onClick = {
+                                    categoria = cat
+                                    categoriaExpanded = false
+                                    // Navegar automáticamente al campo concepto y abrir teclado
+                                    coroutineScope.launch {
+                                        kotlinx.coroutines.delay(100)
+                                        scrollState.animateScrollTo(200) // Aproximadamente donde está concepto
+                                        conceptoFocusRequester.requestFocus()
+                                        keyboardController?.show()
                                     }
-                                )
-                            }
+                                }
+                            )
                         }
                     }
                 }
                 
-                // Concepto
+                // Concepto (línea completa)
                 OutlinedTextField(
                     value = concepto,
                     onValueChange = { concepto = it },
                     label = { Text("Concepto") },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(conceptoFocusRequester),
+                    singleLine = true,
                     placeholder = { Text("Ej: Cena en terraza") }
                 )
                 
-                // Importe y Frecuencia
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                // Frecuencia (línea completa)
+                var expanded by remember { mutableStateOf(false) }
+                val abrirFrecuencia = {
+                    keyboardController?.hide()
+                    expanded = true
+                }
+                
+                Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
-                        value = importe,
-                        onValueChange = { importe = it },
-                        label = { Text("Importe Total (€)") },
-                        modifier = Modifier.weight(2f),
-                        leadingIcon = {
-                            Icon(Icons.Default.Euro, null)
+                        value = when (frecuencia) {
+                            Frecuencia.PUNTUAL -> "Puntual"
+                            Frecuencia.MENSUAL -> "Mensual"
+                            Frecuencia.ANUAL -> "Anual"
+                        },
+                        onValueChange = { },
+                        label = { Text("Frecuencia") },
+                        readOnly = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        maxLines = 1,
+                        trailingIcon = {
+                            IconButton(onClick = abrirFrecuencia) {
+                                Icon(Icons.Default.ArrowDropDown, null)
+                            }
                         }
                     )
-                    
-                    var expanded by remember { mutableStateOf(false) }
-                    Box(modifier = Modifier.weight(1f)) {
-                        OutlinedTextField(
-                            value = when (frecuencia) {
-                                Frecuencia.PUNTUAL -> "Puntual"
-                                Frecuencia.MENSUAL -> "Mensual"
-                                Frecuencia.ANUAL -> "Anual"
-                            },
-                            onValueChange = { },
-                            label = { Text("Frecuencia") },
-                            readOnly = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            trailingIcon = {
-                                IconButton(onClick = { expanded = true }) {
-                                    Icon(Icons.Default.ArrowDropDown, null)
+                    // Overlay clickeable sobre todo el campo
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .matchParentSize()
+                            .clickable { abrirFrecuencia() }
+                    )
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Puntual") },
+                            onClick = {
+                                frecuencia = Frecuencia.PUNTUAL
+                                expanded = false
+                                // Dar foco al campo importe
+                                coroutineScope.launch {
+                                    kotlinx.coroutines.delay(200)
+                                    importeFocusRequester.requestFocus()
+                                    scrollState.animateScrollTo(scrollState.maxValue)
                                 }
                             }
                         )
-                        DropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Puntual") },
-                                onClick = {
-                                    frecuencia = Frecuencia.PUNTUAL
-                                    expanded = false
+                        DropdownMenuItem(
+                            text = { Text("Mensual") },
+                            onClick = {
+                                frecuencia = Frecuencia.MENSUAL
+                                expanded = false
+                                // Dar foco al campo importe
+                                coroutineScope.launch {
+                                    kotlinx.coroutines.delay(200)
+                                    importeFocusRequester.requestFocus()
+                                    scrollState.animateScrollTo(scrollState.maxValue)
                                 }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Mensual") },
-                                onClick = {
-                                    frecuencia = Frecuencia.MENSUAL
-                                    expanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Anual") },
+                            onClick = {
+                                frecuencia = Frecuencia.ANUAL
+                                expanded = false
+                                // Dar foco al campo importe
+                                coroutineScope.launch {
+                                    kotlinx.coroutines.delay(200)
+                                    importeFocusRequester.requestFocus()
+                                    scrollState.animateScrollTo(scrollState.maxValue)
                                 }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Anual") },
-                                onClick = {
-                                    frecuencia = Frecuencia.ANUAL
-                                    expanded = false
-                                }
-                            )
-                        }
+                            }
+                        )
                     }
                 }
+                
+                // Importe (línea completa) - con scroll automático cuando se escribe
+                OutlinedTextField(
+                    value = importe,
+                    onValueChange = { newValue ->
+                        // Solo permitir números y punto decimal
+                        if (newValue.matches(Regex("^\\d*\\.?\\d*$"))) {
+                            importe = newValue
+                            // Scroll automático cuando se escribe para ver el botón guardar
+                            if (newValue.isNotEmpty()) {
+                                coroutineScope.launch {
+                                    kotlinx.coroutines.delay(100)
+                                    scrollState.animateScrollTo(scrollState.maxValue)
+                                }
+                            }
+                        }
+                    },
+                    label = { Text("Importe Total (€)") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(importeFocusRequester)
+                        .onFocusChanged {
+                            if (it.isFocused) {
+                                // Scroll cuando se enfoca el campo
+                                coroutineScope.launch {
+                                    kotlinx.coroutines.delay(200)
+                                    scrollState.animateScrollTo(scrollState.maxValue)
+                                }
+                            }
+                        },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Decimal,
+                        imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            keyboardController?.hide()
+                            // Scroll al final para mostrar el botón guardar
+                            coroutineScope.launch {
+                                scrollState.animateScrollTo(scrollState.maxValue)
+                            }
+                        }
+                    ),
+                    singleLine = true,
+                    leadingIcon = {
+                        Icon(Icons.Default.Euro, null)
+                    }
+                )
                 
                 if (esConjunto && tipo == TipoMovimiento.GASTO && importe.isNotEmpty()) {
                     val importeReal = importe.toDoubleOrNull()?.div(2) ?: 0.0
@@ -235,6 +375,7 @@ fun NewMovementDialog(
                     }
                     
                     val movimiento = Movimiento(
+                        id = UUID.randomUUID().toString(), // Generar ID único para nuevos movimientos
                         fecha = fecha,
                         tipo = tipo,
                         categoria = categoria,

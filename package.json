@@ -1,0 +1,14 @@
+{
+  "name": "finanzas-proactivas",
+  "version": "1.0.0",
+  "description": "App Finanzas Proactivas - Android + Backend Vercel",
+  "private": true,
+  "scripts": {
+    "deploy": "powershell -ExecutionPolicy Bypass -File ./deploy-completo.ps1",
+    "deploy:apk-only": "powershell -ExecutionPolicy Bypass -File ./deploy-completo.ps1 -SkipGit -SkipVercel",
+    "deploy:vercel-only": "powershell -ExecutionPolicy Bypass -File ./deploy-completo.ps1 -SkipApk -SkipGit",
+    "deploy:skip-apk": "powershell -ExecutionPolicy Bypass -File ./deploy-completo.ps1 -SkipApk",
+    "deploy:skip-git": "powershell -ExecutionPolicy Bypass -File ./deploy-completo.ps1 -SkipGit",
+    "deploy:skip-vercel": "powershell -ExecutionPolicy Bypass -File ./deploy-completo.ps1 -SkipVercel"
+  }
+}

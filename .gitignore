@@ -1,6 +1,7 @@
 # Credenciales y secrets
 secrets*.toml
 secrets.toml
+.streamlit/secrets.toml
 *credentials*.json
 credentials.json
 

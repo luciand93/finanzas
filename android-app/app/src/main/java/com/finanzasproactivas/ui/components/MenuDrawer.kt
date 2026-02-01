@@ -100,14 +100,6 @@ fun MenuDrawer(
                 )
                 
                 MenuItem(
-                    icon = Icons.Default.Edit,
-                    text = "📝 Editar",
-                    onClick = {
-                        onNavigate(Screen.Editar.route)
-                    }
-                )
-                
-                MenuItem(
                     icon = Icons.Default.ImportExport,
                     text = "📤 Exportar/Importar",
                     onClick = {

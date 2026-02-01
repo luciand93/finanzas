@@ -10,7 +10,9 @@ import androidx.compose.ui.unit.dp
 import com.finanzasproactivas.ui.theme.*
 
 @Composable
-fun RecommendationsSection() {
+fun RecommendationsSection(
+    presupuestosCercaDelLimite: List<Pair<com.finanzasproactivas.data.model.Presupuesto, Double>> = emptyList()
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -34,17 +36,32 @@ fun RecommendationsSection() {
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        RecommendationCard(
-            tipo = "info",
-            titulo = "Gastos bajo control",
-            descripcion = "Tus gastos están dentro del presupuesto este mes"
-        )
-        
-        RecommendationCard(
-            tipo = "warning",
-            titulo = "Atención en Restaurantes",
-            descripcion = "Has gastado el 80% de tu presupuesto en esta categoría"
-        )
+        if (presupuestosCercaDelLimite.isEmpty()) {
+            RecommendationCard(
+                tipo = "info",
+                titulo = "Gastos bajo control",
+                descripcion = "Tus gastos están dentro del presupuesto este mes"
+            )
+        } else {
+            presupuestosCercaDelLimite.forEach { (presupuesto, porcentaje) ->
+                val tipo = when {
+                    porcentaje >= 100 -> "error"
+                    porcentaje >= 90 -> "error"
+                    porcentaje >= 80 -> "warning"
+                    else -> "info"
+                }
+                val mensaje = when {
+                    porcentaje >= 100 -> "Has superado el presupuesto"
+                    porcentaje >= 90 -> "Casi alcanzaste el límite"
+                    else -> "Estás cerca del límite"
+                }
+                RecommendationCard(
+                    tipo = tipo,
+                    titulo = "⚠️ ${presupuesto.categoria}",
+                    descripcion = "$mensaje: ${porcentaje.toInt()}% del presupuesto (${String.format("%.0f", presupuesto.limite)}€)"
+                )
+            }
+        }
     }
 }
 

@@ -15,7 +15,7 @@ import com.finanzasproactivas.ui.theme.*
 import kotlinx.coroutines.launch
 
 @Composable
-fun ChatSection() {
+fun ChatSection(movimientos: List<com.finanzasproactivas.data.model.Movimiento> = emptyList()) {
     var pregunta by remember { mutableStateOf("") }
     var mensajes by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
@@ -24,15 +24,29 @@ fun ChatSection() {
     val geminiRepo = remember { GeminiRepository().apply { initialize() } }
     val scope = rememberCoroutineScope()
     
-    // Contexto financiero (por ahora datos de ejemplo, luego se conectarán con Google Sheets)
-    val contextoFinanciero = remember {
+    // Contexto financiero basado en datos reales
+    val contextoFinanciero = remember(movimientos) {
+        val ingresos = movimientos.filter { it.tipo == com.finanzasproactivas.data.model.TipoMovimiento.INGRESO }
+            .sumOf { it.importe }
+        val gastos = movimientos.filter { it.tipo == com.finanzasproactivas.data.model.TipoMovimiento.GASTO }
+            .sumOf { it.importe }
+        val categorias = movimientos
+            .filter { it.tipo == com.finanzasproactivas.data.model.TipoMovimiento.GASTO }
+            .groupBy { it.categoria }
+            .mapValues { it.value.sumOf { m -> m.importe } }
+            .toList()
+            .sortedByDescending { it.second }
+            .take(5)
+            .joinToString(", ") { "${it.first} (€${String.format("%.2f", it.second)})" }
+        
         """
-        Resumen financiero del mes actual:
-        - Ingresos totales: €2,500.00
-        - Gastos totales: €1,200.00
-        - Ahorro disponible: €1,300.00
-        - Categorías principales: Vivienda, Transporte, Comida
-        - Promedio diario de gastos: €40.00
+        Resumen financiero basado en tus datos:
+        - Total de movimientos: ${movimientos.size}
+        - Ingresos totales: €${String.format("%.2f", ingresos)}
+        - Gastos totales: €${String.format("%.2f", gastos)}
+        - Ahorro disponible: €${String.format("%.2f", ingresos - gastos)}
+        - Categorías principales: $categorias
+        - Promedio por movimiento: €${String.format("%.2f", if (movimientos.isNotEmpty()) (ingresos + gastos) / movimientos.size else 0.0)}
         """.trimIndent()
     }
     
