@@ -24,30 +24,21 @@ export default async function handler(req, res) {
     }
     
     const genAI = new GoogleGenerativeAI(apiKey);
-    // gemini-1.5-flash es más rápido y reduce timeouts en Vercel
+    // Respuesta corta y rápida para evitar timeout en Vercel (límite 10s en plan gratuito)
     const model = genAI.getGenerativeModel({
       model: 'gemini-1.5-flash',
       generationConfig: {
-        maxOutputTokens: 1024,
-        temperature: 0.7,
+        maxOutputTokens: 384,
+        temperature: 0.6,
       }
     });
     
-    // Construir prompt con contexto (el mensaje ya puede incluir contexto desde la app)
-    let fullPrompt = message;
-    if (context && typeof context === 'object') {
-      const contextStr = `
-Contexto: Finanzas Proactivas. Fecha: ${new Date().toLocaleDateString('es-ES')}
-${context.movimientos != null ? `Total movimientos: ${context.movimientos}` : ''}
-${context.gastosMes != null ? `Gastos mes: ${context.gastosMes}€` : ''}
-${context.ingresosMes != null ? `Ingresos mes: ${context.ingresosMes}€` : ''}
-
-Pregunta: ${message}
-`;
-      fullPrompt = contextStr;
-    }
+    // Limitar longitud del prompt para respuesta más rápida
+    const promptMaxLen = 4000;
+    const fullPrompt = message.length > promptMaxLen
+      ? message.slice(0, promptMaxLen) + '\n\n[Contexto recortado. Responde de forma breve.]'
+      : message;
     
-    // Generar respuesta
     const result = await model.generateContent(fullPrompt);
     const response = await result.response;
     const text = response.text();
