@@ -19,6 +19,8 @@ android {
         vectorDrawables {
             useSupportLibrary true
         }
+        // URL del backend en Vercel. Si en tu red falla el DNS, cambia por otra URL que sí resuelva.
+        buildConfigField "String", "API_BASE_URL", "\"https://finanzas-api-three.vercel.app/api/\""
     }
 
     buildTypes {
@@ -39,6 +41,7 @@ android {
     
     buildFeatures {
         compose true
+        buildConfig true
     }
     
     composeOptions {

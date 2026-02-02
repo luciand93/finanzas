@@ -7,11 +7,13 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
- * Cliente Retrofit para comunicarse con el backend de Vercel
+ * Cliente Retrofit para comunicarse con el backend de Vercel.
+ * La URL se toma de BuildConfig.API_BASE_URL (definida en app/build.gradle).
+ * Si obtienes "unable to resolve host", cambia API_BASE_URL en build.gradle por una URL que funcione en tu red.
  */
 object RetrofitClient {
     
-    private const val BASE_URL = "https://finanzas-api-three.vercel.app/api/"
+    private val BASE_URL: String = com.finanzasproactivas.BuildConfig.API_BASE_URL
     
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY

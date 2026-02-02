@@ -17,10 +17,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun ChatSection(movimientos: List<com.finanzasproactivas.data.model.Movimiento> = emptyList()) {
     var pregunta by remember { mutableStateOf("") }
-    var mensajes by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
+    val mensajes = remember { mutableStateListOf<ChatMessage>() }
     var isLoading by remember { mutableStateOf(false) }
     
-    // Inicializar GeminiRepository
     val geminiRepo = remember { GeminiRepository().apply { initialize() } }
     val scope = rememberCoroutineScope()
     
@@ -139,30 +138,22 @@ fun ChatSection(movimientos: List<com.finanzasproactivas.data.model.Movimiento> 
                                 IconButton(
                                     onClick = {
                                         if (pregunta.isNotEmpty() && !isLoading) {
-                                            val preguntaActual = pregunta
-                                            mensajes = mensajes + ChatMessage(
-                                                texto = preguntaActual,
-                                                esUsuario = true
-                                            )
+                                            val preguntaActual = pregunta.trim()
                                             pregunta = ""
+                                            mensajes.add(ChatMessage(texto = preguntaActual, esUsuario = true))
                                             isLoading = true
-                                            
-                                            // Llamar a Gemini
                                             scope.launch {
                                                 try {
                                                     val respuesta = geminiRepo.chat(
                                                         pregunta = preguntaActual,
                                                         contexto = contextoFinanciero
                                                     )
-                                                    mensajes = mensajes + ChatMessage(
-                                                        texto = respuesta,
-                                                        esUsuario = false
-                                                    )
+                                                    mensajes.add(ChatMessage(texto = respuesta, esUsuario = false))
                                                 } catch (e: Exception) {
-                                                    mensajes = mensajes + ChatMessage(
+                                                    mensajes.add(ChatMessage(
                                                         texto = "Error: ${e.message ?: "No se pudo obtener respuesta"}",
                                                         esUsuario = false
-                                                    )
+                                                    ))
                                                 } finally {
                                                     isLoading = false
                                                 }

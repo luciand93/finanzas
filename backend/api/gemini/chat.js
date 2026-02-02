@@ -60,20 +60,21 @@ Pregunta: ${message}
     
   } catch (error) {
     console.error('❌ Error en Gemini:', error);
-    
-    // Errores específicos de Gemini
-    if (error.message?.includes('API_KEY_INVALID')) {
-      return sendError(res, 500, '❌ API Key de Gemini inválida');
+    const msg = error.message || String(error);
+
+    if (msg.includes('API_KEY_INVALID') || msg.includes('API key')) {
+      return sendError(res, 500, 'API Key de Gemini inválida. Configura GEMINI_API_KEY en Vercel (Project → Settings → Environment Variables).');
     }
-    
-    if (error.message?.includes('REGION_NOT_AVAILABLE')) {
-      return sendError(res, 503, '❌ Gemini no disponible en esta región. El servidor debe estar en una región compatible.');
+    if (msg.includes('REGION_NOT_AVAILABLE')) {
+      return sendError(res, 503, 'Gemini no disponible en esta región. El servidor Vercel debe estar en una región compatible.');
     }
-    
-    if (error.message?.includes('QUOTA_EXCEEDED')) {
-      return sendError(res, 429, '❌ Cuota de Gemini excedida. Intenta más tarde.');
+    if (msg.includes('QUOTA_EXCEEDED') || msg.includes('429')) {
+      return sendError(res, 429, 'Cuota de Gemini excedida. Intenta más tarde.');
     }
-    
-    return sendError(res, 500, `❌ Error al generar respuesta: ${error.message}`);
+    if (msg.includes('timeout') || msg.includes('ETIMEDOUT')) {
+      return sendError(res, 504, 'El servidor tardó demasiado en responder. Intenta de nuevo.');
+    }
+
+    return sendError(res, 500, `Error al generar respuesta: ${msg}`);
   }
 }

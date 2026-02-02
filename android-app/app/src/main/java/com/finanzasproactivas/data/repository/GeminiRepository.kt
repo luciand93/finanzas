@@ -4,34 +4,25 @@ import com.finanzasproactivas.data.api.RetrofitClient
 import com.finanzasproactivas.data.api.GeminiChatRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 /**
- * Repository para comunicarse con Gemini a través del backend de Vercel
- * Esto resuelve problemas de restricciones regionales
+ * Repository para comunicarse con Gemini a través del backend de Vercel.
+ * El servidor de Vercel ejecuta las llamadas a la API de Gemini (útil desde Andorra y otras regiones).
  */
 class GeminiRepository {
     
     private val apiService = RetrofitClient.apiService
     
-    /**
-     * Ya no es necesario inicializar - el backend maneja la conexión con Gemini
-     */
     fun initialize(apiKey: String? = null) {
-        // Mantenido por compatibilidad pero ya no es necesario
-        // El backend de Vercel maneja la conexión con Gemini
+        // No necesario: el backend de Vercel usa su propia GEMINI_API_KEY
     }
     
     /**
-     * Envía una pregunta a Gemini a través del backend de Vercel
-     * Esto resuelve problemas de restricciones regionales
-     * 
-     * @param pregunta La pregunta del usuario
-     * @param contexto Los datos financieros formateados como texto
-     * @return La respuesta de Gemini o un mensaje de error
+     * Envía una pregunta al asistente IA vía Vercel (Vercel llama a Gemini en el servidor).
      */
     suspend fun chat(pregunta: String, contexto: String): String = withContext(Dispatchers.IO) {
         try {
-            // Crear el mensaje completo con contexto
             val mensajeCompleto = """
                 DATOS FINANCIEROS DEL USUARIO:
                 $contexto
@@ -40,7 +31,6 @@ class GeminiRepository {
                 $pregunta
             """.trimIndent()
             
-            // Preparar request para el backend
             val request = GeminiChatRequest(
                 message = mensajeCompleto,
                 context = mapOf(
@@ -49,7 +39,6 @@ class GeminiRepository {
                 )
             )
             
-            // Llamar al backend de Vercel
             val response = apiService.chatGemini(request)
             
             if (response.isSuccessful) {
@@ -57,32 +46,27 @@ class GeminiRepository {
                 if (apiResponse?.success == true) {
                     apiResponse.data?.response ?: "Lo siento, no pude generar una respuesta."
                 } else {
-                    """
-                    ❌ Error al consultar el asistente IA
-                    
-                    ${apiResponse?.message ?: "Error desconocido"}
-                    
-                    Por favor, intenta de nuevo.
-                    """.trimIndent()
+                    "❌ ${apiResponse?.message ?: "Error desconocido"}\n\nPor favor, intenta de nuevo."
                 }
             } else {
-                """
-                ❌ Error de conexión con el servidor
-                
-                Código: ${response.code()}
-                
-                Verifica tu conexión a internet y vuelve a intentar.
-                """.trimIndent()
+                val serverMessage = response.errorBody()?.string()?.let { body ->
+                    try {
+                        JSONObject(body).optString("message", "").takeIf { it.isNotEmpty() }
+                    } catch (_: Exception) { null }
+                }
+                buildString {
+                    append("❌ Error del servidor (${response.code()})")
+                    if (!serverMessage.isNullOrBlank()) append("\n\n$serverMessage")
+                    else append("\n\nVerifica tu conexión y que la API en Vercel tenga GEMINI_API_KEY configurada.")
+                }
             }
             
+        } catch (e: java.net.UnknownHostException) {
+            "❌ No se pudo conectar al servidor.\n\nComprueba que puedes abrir en el navegador:\nhttps://finanzas-api-three.vercel.app/api/health\n\nSi no carga, el problema es la red o el DNS de tu dispositivo."
+        } catch (e: java.net.SocketTimeoutException) {
+            "❌ Tiempo de espera agotado. El servidor tardó demasiado en responder. Intenta de nuevo."
         } catch (e: Exception) {
-            """
-            ❌ Error al comunicarse con el asistente IA
-            
-            Error: ${e.message ?: "Error desconocido"}
-            
-            Verifica tu conexión a internet.
-            """.trimIndent()
+            "❌ Error: ${e.message ?: "No se pudo conectar al asistente IA"}\n\nVerifica tu conexión a internet."
         }
     }
 }
