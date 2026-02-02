@@ -70,6 +70,7 @@ fun TablaScreen(navController: NavController) {
     var importeMin by remember { mutableStateOf("") }
     var importeMax by remember { mutableStateOf("") }
     var filtroTipo by remember { mutableStateOf<TipoMovimiento?>(null) }
+    var filtroFrecuencia by remember { mutableStateOf<Frecuencia?>(null) }
     var categoriaFiltro by remember { mutableStateOf("") }
     var categoriaExpanded by remember { mutableStateOf(false) }
     
@@ -77,7 +78,7 @@ fun TablaScreen(navController: NavController) {
     val categorias = remember { categoriasRepo.obtenerCategorias() }
     
     // Filtrar movimientos
-    val movimientosFiltrados = remember(movimientos, fechaInicio, fechaFin, buscarTexto, importeMin, importeMax, filtroTipo, categoriaFiltro) {
+    val movimientosFiltrados = remember(movimientos, fechaInicio, fechaFin, buscarTexto, importeMin, importeMax, filtroTipo, filtroFrecuencia, categoriaFiltro) {
         movimientos.filter { movimiento ->
             val cal = Calendar.getInstance().apply { time = movimiento.fecha }
             val fechaMovimiento = cal.time
@@ -98,10 +99,13 @@ fun TablaScreen(navController: NavController) {
             // Filtro por tipo
             val coincideTipo = filtroTipo == null || movimiento.tipo == filtroTipo
             
+            // Filtro por cadencia (frecuencia)
+            val coincideFrecuencia = filtroFrecuencia == null || movimiento.frecuencia == filtroFrecuencia
+            
             // Filtro por categoría
             val coincideCategoria = categoriaFiltro.isEmpty() || movimiento.categoria == categoriaFiltro
             
-            enRangoFecha && coincideTexto && enRangoImporte && coincideTipo && coincideCategoria
+            enRangoFecha && coincideTexto && enRangoImporte && coincideTipo && coincideFrecuencia && coincideCategoria
         }
     }
     
@@ -286,6 +290,36 @@ fun TablaScreen(navController: NavController) {
                             selected = filtroTipo == TipoMovimiento.GASTO,
                             onClick = { filtroTipo = if (filtroTipo == TipoMovimiento.GASTO) null else TipoMovimiento.GASTO },
                             label = { Text("Gastos") }
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Filtro por cadencia (frecuencia)
+                    Text("Cadencia", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        FilterChip(
+                            selected = filtroFrecuencia == null,
+                            onClick = { filtroFrecuencia = null },
+                            label = { Text("Todas") }
+                        )
+                        FilterChip(
+                            selected = filtroFrecuencia == Frecuencia.PUNTUAL,
+                            onClick = { filtroFrecuencia = if (filtroFrecuencia == Frecuencia.PUNTUAL) null else Frecuencia.PUNTUAL },
+                            label = { Text("Puntual") }
+                        )
+                        FilterChip(
+                            selected = filtroFrecuencia == Frecuencia.MENSUAL,
+                            onClick = { filtroFrecuencia = if (filtroFrecuencia == Frecuencia.MENSUAL) null else Frecuencia.MENSUAL },
+                            label = { Text("Mensual") }
+                        )
+                        FilterChip(
+                            selected = filtroFrecuencia == Frecuencia.ANUAL,
+                            onClick = { filtroFrecuencia = if (filtroFrecuencia == Frecuencia.ANUAL) null else Frecuencia.ANUAL },
+                            label = { Text("Anual") }
                         )
                     }
                     
@@ -589,6 +623,8 @@ fun EditMovementDialog(
     var frecuencia by remember { mutableStateOf(movimiento.frecuencia) }
     var esConjunto by remember { mutableStateOf(movimiento.esConjunto) }
     var fecha by remember { mutableStateOf(movimiento.fecha) }
+    var tieneFechaFin by remember { mutableStateOf(movimiento.fechaFin != null) }
+    var fechaFin by remember { mutableStateOf(movimiento.fechaFin ?: Calendar.getInstance().apply { add(Calendar.YEAR, 1) }.time) }
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -753,6 +789,7 @@ fun EditMovementDialog(
                             text = { Text("Puntual") },
                             onClick = {
                                 frecuencia = Frecuencia.PUNTUAL
+                                tieneFechaFin = false
                                 expanded = false
                             }
                         )
@@ -770,6 +807,65 @@ fun EditMovementDialog(
                                 expanded = false
                             }
                         )
+                    }
+                }
+                
+                // Fecha final (solo para mensual/anual)
+                if (frecuencia == Frecuencia.MENSUAL || frecuencia == Frecuencia.ANUAL) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = tieneFechaFin,
+                            onCheckedChange = { tieneFechaFin = it }
+                        )
+                        Text("Fecha final (opcional)")
+                    }
+                    if (tieneFechaFin) {
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = dateFormat.format(fechaFin),
+                                onValueChange = {},
+                                label = { Text("📅 Fecha final") },
+                                readOnly = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                leadingIcon = { Icon(Icons.Default.CalendarToday, null) },
+                                trailingIcon = {
+                                    IconButton(onClick = {
+                                        val datePicker = android.app.DatePickerDialog(
+                                            context,
+                                            { _, y, m, d ->
+                                                fechaFin = Calendar.getInstance().apply { set(y, m, d) }.time
+                                            },
+                                            Calendar.getInstance().apply { time = fechaFin }.get(Calendar.YEAR),
+                                            Calendar.getInstance().apply { time = fechaFin }.get(Calendar.MONTH),
+                                            Calendar.getInstance().apply { time = fechaFin }.get(Calendar.DAY_OF_MONTH)
+                                        )
+                                        datePicker.show()
+                                    }) {
+                                        Icon(Icons.Default.CalendarToday, null)
+                                    }
+                                }
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .matchParentSize()
+                                    .clickable {
+                                        val datePicker = android.app.DatePickerDialog(
+                                            context,
+                                            { _, y, m, d ->
+                                                fechaFin = Calendar.getInstance().apply { set(y, m, d) }.time
+                                            },
+                                            Calendar.getInstance().apply { time = fechaFin }.get(Calendar.YEAR),
+                                            Calendar.getInstance().apply { time = fechaFin }.get(Calendar.MONTH),
+                                            Calendar.getInstance().apply { time = fechaFin }.get(Calendar.DAY_OF_MONTH)
+                                        )
+                                        datePicker.show()
+                                    }
+                            )
+                        }
                     }
                 }
                 
@@ -846,7 +942,10 @@ fun EditMovementDialog(
                         importe = importeReal,
                         frecuencia = frecuencia,
                         impactoMensual = impacto,
-                        esConjunto = esConjunto
+                        esConjunto = esConjunto,
+                        fechaFin = if (frecuencia == Frecuencia.MENSUAL || frecuencia == Frecuencia.ANUAL) {
+                            if (tieneFechaFin) fechaFin else null
+                        } else null
                     )
                     onSave(movimientoActualizado)
                 },

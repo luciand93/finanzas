@@ -16,8 +16,20 @@ import androidx.navigation.NavController
 import com.finanzasproactivas.ui.components.MenuDrawer
 import com.finanzasproactivas.ui.theme.*
 import com.finanzasproactivas.ui.viewmodel.FinanzasViewModel
+import com.finanzasproactivas.ui.viewmodel.PeriodoEstadisticas
 import java.text.NumberFormat
 import java.util.*
+
+private fun filtrarPorPeriodo(movimientos: List<com.finanzasproactivas.data.model.Movimiento>, periodo: PeriodoEstadisticas): List<com.finanzasproactivas.data.model.Movimiento> {
+    if (periodo == PeriodoEstadisticas.GENERAL) return movimientos
+    val ahora = Calendar.getInstance()
+    val mesActual = ahora.get(Calendar.MONTH)
+    val añoActual = ahora.get(Calendar.YEAR)
+    return movimientos.filter { m ->
+        val cal = Calendar.getInstance().apply { time = m.fecha }
+        cal.get(Calendar.YEAR) == añoActual && cal.get(Calendar.MONTH) == mesActual
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,12 +40,32 @@ fun GraficosScreen(navController: NavController) {
     val movimientos by viewModel.movimientos.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
+    var periodoGraficos by remember { mutableStateOf(PeriodoEstadisticas.MES_ACTUAL) }
+    
+    val movimientosFiltrados = remember(movimientos, periodoGraficos) {
+        filtrarPorPeriodo(movimientos, periodoGraficos)
+    }
     
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("📊 Gráficos") },
                 actions = {
+                    Row(
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        FilterChip(
+                            selected = periodoGraficos == PeriodoEstadisticas.MES_ACTUAL,
+                            onClick = { periodoGraficos = PeriodoEstadisticas.MES_ACTUAL },
+                            label = { Text("Mes actual", style = MaterialTheme.typography.labelSmall) }
+                        )
+                        FilterChip(
+                            selected = periodoGraficos == PeriodoEstadisticas.GENERAL,
+                            onClick = { periodoGraficos = PeriodoEstadisticas.GENERAL },
+                            label = { Text("General", style = MaterialTheme.typography.labelSmall) }
+                        )
+                    }
                     IconButton(onClick = { showMenu = !showMenu }) {
                         Icon(Icons.Default.Menu, contentDescription = "Menú")
                     }
@@ -56,17 +88,17 @@ fun GraficosScreen(navController: NavController) {
                     .verticalScroll(rememberScrollState())
             ) {
                 // Gráfico de ingresos vs gastos
-                GraficoIngresosGastos(movimientos)
+                GraficoIngresosGastos(movimientosFiltrados)
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 // Gráfico por categorías
-                GraficoPorCategorias(movimientos)
+                GraficoPorCategorias(movimientosFiltrados)
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 // Gráfico temporal
-                GraficoTemporal(movimientos)
+                GraficoTemporal(movimientosFiltrados)
             }
         }
         

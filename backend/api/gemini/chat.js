@@ -24,20 +24,25 @@ export default async function handler(req, res) {
     }
     
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    // gemini-1.5-flash es más rápido y reduce timeouts en Vercel
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: {
+        maxOutputTokens: 1024,
+        temperature: 0.7,
+      }
+    });
     
-    // Construir prompt con contexto
+    // Construir prompt con contexto (el mensaje ya puede incluir contexto desde la app)
     let fullPrompt = message;
     if (context && typeof context === 'object') {
       const contextStr = `
-Contexto de la conversación:
-- Usuario: Finanzas Proactivas
-- Fecha actual: ${new Date().toLocaleDateString('es-ES')}
-${context.movimientos ? `- Total movimientos: ${context.movimientos}` : ''}
-${context.gastosMes ? `- Gastos este mes: ${context.gastosMes}€` : ''}
-${context.ingresosMes ? `- Ingresos este mes: ${context.ingresosMes}€` : ''}
+Contexto: Finanzas Proactivas. Fecha: ${new Date().toLocaleDateString('es-ES')}
+${context.movimientos != null ? `Total movimientos: ${context.movimientos}` : ''}
+${context.gastosMes != null ? `Gastos mes: ${context.gastosMes}€` : ''}
+${context.ingresosMes != null ? `Ingresos mes: ${context.ingresosMes}€` : ''}
 
-Pregunta del usuario: ${message}
+Pregunta: ${message}
 `;
       fullPrompt = contextStr;
     }
@@ -49,7 +54,7 @@ Pregunta del usuario: ${message}
     
     return sendSuccess(res, {
       response: text,
-      model: 'gemini-pro',
+      model: 'gemini-1.5-flash',
       timestamp: new Date().toISOString()
     });
     

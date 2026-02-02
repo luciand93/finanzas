@@ -121,7 +121,8 @@ class SupabaseRepository {
                 else -> Frecuencia.PUNTUAL
             },
             impactoMensual = this.impacto_mensual,
-            esConjunto = this.es_conjunto
+            esConjunto = this.es_conjunto,
+            fechaFin = this.fecha_fin?.let { try { isoDateFormat.parse(it) } catch (e: Exception) { null } }
         )
     }
     
@@ -142,7 +143,8 @@ class SupabaseRepository {
                 Frecuencia.PUNTUAL -> "Puntual"
             },
             impacto_mensual = this.impactoMensual,
-            es_conjunto = this.esConjunto
+            es_conjunto = this.esConjunto,
+            fecha_fin = this.fechaFin?.let { isoDateFormat.format(it) }
         )
     }
 }

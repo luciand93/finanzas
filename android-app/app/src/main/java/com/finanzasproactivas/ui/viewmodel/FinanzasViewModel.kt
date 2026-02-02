@@ -298,30 +298,33 @@ class FinanzasViewModel(application: Application) : AndroidViewModel(application
     }
     
     // Generar movimientos mensuales para un mes específico
+    // Solo incluye movimientos mensuales sin fecha final o con fecha final >= primer día del mes objetivo
     fun generarMovimientosMensuales(mes: Int, año: Int) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
             try {
-                val movimientosMensuales = _movimientos.value
-                    .filter { it.frecuencia == Frecuencia.MENSUAL }
-                
                 val calendar = Calendar.getInstance().apply {
                     set(Calendar.YEAR, año)
                     set(Calendar.MONTH, mes)
                     set(Calendar.DAY_OF_MONTH, 1)
                 }
+                val primerDiaMes = calendar.time
                 
-                // Verificar si ya existen movimientos para ese mes
+                val movimientosMensuales = _movimientos.value
+                    .filter { it.frecuencia == Frecuencia.MENSUAL }
+                    .filter { base ->
+                        base.fechaFin == null || base.fechaFin >= primerDiaMes
+                    }
+                
                 val movimientosExistentes = _movimientos.value.filter { movimiento ->
                     val cal = Calendar.getInstance().apply { time = movimiento.fecha }
-                    cal.get(Calendar.YEAR) == año && 
+                    cal.get(Calendar.YEAR) == año &&
                     cal.get(Calendar.MONTH) == mes &&
                     movimiento.frecuencia == Frecuencia.MENSUAL
                 }
                 
                 if (movimientosExistentes.isEmpty()) {
-                    // Generar movimientos para cada movimiento mensual
                     movimientosMensuales.forEach { movimientoBase ->
                         val nuevoMovimiento = Movimiento(
                             id = UUID.randomUUID().toString(),
@@ -332,11 +335,12 @@ class FinanzasViewModel(application: Application) : AndroidViewModel(application
                             importe = movimientoBase.importe,
                             frecuencia = movimientoBase.frecuencia,
                             impactoMensual = movimientoBase.impactoMensual,
-                            esConjunto = movimientoBase.esConjunto
+                            esConjunto = movimientoBase.esConjunto,
+                            fechaFin = movimientoBase.fechaFin
                         )
                         repository.guardarMovimiento(nuevoMovimiento)
                     }
-                    cargarMovimientos() // Recargar después de generar
+                    cargarMovimientos()
                 }
             } catch (e: Exception) {
                 _error.value = "Error al generar movimientos: ${e.message}"
@@ -361,8 +365,10 @@ class FinanzasViewModel(application: Application) : AndroidViewModel(application
                 movimiento.frecuencia == Frecuencia.MENSUAL
             }
             
-            // Si no hay movimientos mensuales para este mes, generarlos
-            if (movimientosDelMes.isEmpty()) {
+            val movimientosMensualesActivos = _movimientos.value
+                .filter { it.frecuencia == Frecuencia.MENSUAL }
+                .filter { it.fechaFin == null || it.fechaFin >= Calendar.getInstance().apply { set(añoActual, mesActual, 1) }.time }
+            if (movimientosDelMes.isEmpty() && movimientosMensualesActivos.isNotEmpty()) {
                 generarMovimientosMensuales(mesActual, añoActual)
             }
         }

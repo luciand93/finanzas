@@ -4,6 +4,7 @@ secrets.toml
 .streamlit/secrets.toml
 *credentials*.json
 credentials.json
+android-app/RESUMEN_CAMBIOS_ANDROID.md
 
 # Python
 __pycache__/

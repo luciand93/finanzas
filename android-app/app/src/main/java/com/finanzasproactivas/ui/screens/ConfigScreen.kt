@@ -389,8 +389,13 @@ fun GenerarMovimientosDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    "Selecciona el mes para el cual generar los movimientos mensuales recurrentes:",
+                    "Selecciona el mes para el cual generar los movimientos mensuales recurrentes.",
                     style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    "Solo se generan movimientos sin fecha final o cuya fecha final sea posterior al mes elegido.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = com.finanzasproactivas.ui.theme.TextSecondary
                 )
                 
                 Row(

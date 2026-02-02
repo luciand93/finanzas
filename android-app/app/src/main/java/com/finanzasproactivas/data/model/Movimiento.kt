@@ -11,7 +11,8 @@ data class Movimiento(
     val importe: Double,
     val frecuencia: Frecuencia,
     val impactoMensual: Double,
-    val esConjunto: Boolean = false
+    val esConjunto: Boolean = false,
+    val fechaFin: Date? = null  // Solo para recurrentes (mensual/anual): fecha de finalización opcional
 )
 
 enum class TipoMovimiento {

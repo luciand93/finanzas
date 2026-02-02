@@ -56,6 +56,8 @@ fun NewMovementDialog(
     var frecuencia by remember { mutableStateOf(Frecuencia.PUNTUAL) }
     var esConjunto by remember { mutableStateOf(false) }
     var fecha by remember { mutableStateOf(Date()) }
+    var tieneFechaFin by remember { mutableStateOf(false) }
+    var fechaFin by remember { mutableStateOf<Date?>(null) }
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -263,8 +265,9 @@ fun NewMovementDialog(
                             text = { Text("Puntual") },
                             onClick = {
                                 frecuencia = Frecuencia.PUNTUAL
+                                tieneFechaFin = false
+                                fechaFin = null
                                 expanded = false
-                                // Dar foco al campo importe
                                 coroutineScope.launch {
                                     kotlinx.coroutines.delay(200)
                                     importeFocusRequester.requestFocus()
@@ -297,6 +300,74 @@ fun NewMovementDialog(
                                     scrollState.animateScrollTo(scrollState.maxValue)
                                 }
                             }
+                        )
+                    }
+                }
+                
+                // Fecha final (solo para mensual/anual, opcional)
+                if (frecuencia == Frecuencia.MENSUAL || frecuencia == Frecuencia.ANUAL) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = tieneFechaFin,
+                            onCheckedChange = {
+                                tieneFechaFin = it
+                                if (!it) fechaFin = null else fechaFin = Calendar.getInstance().apply { add(Calendar.YEAR, 1) }.time
+                            }
+                        )
+                        Text("Fecha final (opcional)")
+                    }
+                    if (tieneFechaFin) {
+                        val fechaFinVal = fechaFin ?: Calendar.getInstance().apply { add(Calendar.YEAR, 1) }.time
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = dateFormat.format(fechaFinVal),
+                                onValueChange = {},
+                                label = { Text("📅 Fecha final") },
+                                readOnly = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                leadingIcon = { Icon(Icons.Default.CalendarToday, null) },
+                                trailingIcon = {
+                                    IconButton(onClick = {
+                                        val datePicker = android.app.DatePickerDialog(
+                                            context,
+                                            { _, y, m, d ->
+                                                fechaFin = Calendar.getInstance().apply { set(y, m, d) }.time
+                                            },
+                                            Calendar.getInstance().apply { time = fechaFinVal }.get(Calendar.YEAR),
+                                            Calendar.getInstance().apply { time = fechaFinVal }.get(Calendar.MONTH),
+                                            Calendar.getInstance().apply { time = fechaFinVal }.get(Calendar.DAY_OF_MONTH)
+                                        )
+                                        datePicker.show()
+                                    }) {
+                                        Icon(Icons.Default.CalendarToday, null)
+                                    }
+                                }
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .matchParentSize()
+                                    .clickable {
+                                        val datePicker = android.app.DatePickerDialog(
+                                            context,
+                                            { _, y, m, d ->
+                                                fechaFin = Calendar.getInstance().apply { set(y, m, d) }.time
+                                            },
+                                            Calendar.getInstance().apply { time = fechaFinVal }.get(Calendar.YEAR),
+                                            Calendar.getInstance().apply { time = fechaFinVal }.get(Calendar.MONTH),
+                                            Calendar.getInstance().apply { time = fechaFinVal }.get(Calendar.DAY_OF_MONTH)
+                                        )
+                                        datePicker.show()
+                                    }
+                            )
+                        }
+                        Text(
+                            "No se generarán movimientos después de esta fecha.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = com.finanzasproactivas.ui.theme.TextSecondary
                         )
                     }
                 }
@@ -375,7 +446,7 @@ fun NewMovementDialog(
                     }
                     
                     val movimiento = Movimiento(
-                        id = UUID.randomUUID().toString(), // Generar ID único para nuevos movimientos
+                        id = UUID.randomUUID().toString(),
                         fecha = fecha,
                         tipo = tipo,
                         categoria = categoria,
@@ -383,7 +454,8 @@ fun NewMovementDialog(
                         importe = importeReal,
                         frecuencia = frecuencia,
                         impactoMensual = impacto,
-                        esConjunto = esConjunto
+                        esConjunto = esConjunto,
+                        fechaFin = if (frecuencia == Frecuencia.MENSUAL || frecuencia == Frecuencia.ANUAL) fechaFin else null
                     )
                     onSave(movimiento)
                 },

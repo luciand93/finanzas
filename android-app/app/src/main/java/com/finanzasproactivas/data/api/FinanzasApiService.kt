@@ -58,6 +58,7 @@ data class MovimientoDto(
     val frecuencia: String = "Puntual",
     val impacto_mensual: Double = 0.0,
     val es_conjunto: Boolean = false,
+    val fecha_fin: String? = null,
     val created_at: String? = null,
     val updated_at: String? = null
 )

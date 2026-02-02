@@ -1,5 +1,6 @@
 package com.finanzasproactivas.ui.screens
 
+import android.app.Application
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -12,8 +13,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.finanzasproactivas.ui.navigation.Screen
 import com.finanzasproactivas.ui.theme.*
 import com.finanzasproactivas.ui.viewmodel.FinanzasViewModel
 import java.text.NumberFormat
@@ -26,7 +30,28 @@ fun DetalleIndicadorScreen(
     indicadorId: String
 ) {
     val context = LocalContext.current
-    val viewModel: FinanzasViewModel = viewModel { FinanzasViewModel(context.applicationContext as android.app.Application) }
+    val app = context.applicationContext as Application
+    val parentEntry = remember(navController) {
+        try { navController.getBackStackEntry(Screen.Asesor.route) } catch (_: Exception) { null }
+    }
+    val viewModel: FinanzasViewModel = if (parentEntry != null) {
+        viewModel(
+            viewModelStoreOwner = parentEntry,
+            factory = object : ViewModelProvider.Factory {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    @Suppress("UNCHECKED_CAST")
+                    return FinanzasViewModel(app) as T
+                }
+            }
+        )
+    } else {
+        viewModel(factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return FinanzasViewModel(app) as T
+            }
+        })
+    }
     
     val movimientos by viewModel.movimientos.collectAsState()
     val periodoActual by viewModel.periodoActual.collectAsState()
