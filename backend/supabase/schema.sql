@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS movimientos (
   frecuencia VARCHAR(10) NOT NULL DEFAULT 'Puntual' CHECK (frecuencia IN ('Puntual', 'Mensual', 'Anual')),
   impacto_mensual DECIMAL(12,2) DEFAULT 0,
   es_conjunto BOOLEAN DEFAULT false,
+  fecha_fin DATE DEFAULT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

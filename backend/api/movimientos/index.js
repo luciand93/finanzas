@@ -66,6 +66,13 @@ export default async function handler(req, res) {
         .single();
       
       if (error) {
+        if (error.message?.includes('fecha_fin') || error.message?.includes('column "fecha_fin"')) {
+          return res.status(400).json({
+            error: true,
+            message: 'La base de datos no tiene la columna fecha_fin. Ejecuta la migración migration_fecha_fin.sql en Supabase.',
+            details: error
+          });
+        }
         console.error('Error Supabase:', error);
         return res.status(500).json({
           error: true,

@@ -7,14 +7,16 @@
   "scripts": {
     "dev": "vercel dev",
     "deploy": "vercel --prod",
-    "migrate": "node scripts/migrate-from-sheets.js"
+    "migrate": "node scripts/migrate-from-sheets.js",
+    "migrate:fecha-fin": "node scripts/apply-migration-fecha-fin.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
     "@supabase/supabase-js": "^2.39.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.1",
-    "googleapis": "^134.0.0"
+    "googleapis": "^134.0.0",
+    "pg": "^8.18.0"
   },
   "devDependencies": {
     "@vercel/node": "^3.0.21"
